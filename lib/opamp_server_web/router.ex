@@ -18,6 +18,12 @@ defmodule OpAMPServerWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    live "/agent", AgentLive.Index, :index
+    live "/agent/new", AgentLive.Index, :new
+    live "/agent/:id/edit", AgentLive.Index, :edit
+
+    live "/agent/:id", AgentLive.Show, :show
+    live "/agent/:id/show/edit", AgentLive.Show, :edit
   end
 
   # Other scopes may use custom stacks.

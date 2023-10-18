@@ -62,5 +62,7 @@ defmodule OpAMPServerWeb.BridgeAgent do
   """
   def put(agent_map, agent_id, value) do
     Agent.update(agent_map, &Map.put(&1, agent_id, value))
+    {:ok, data} = Protobuf.JSON.to_encodable(value)
+    OpAMPServer.Agents.create_agent(%{instance_id: agent_id, effective_config: data})
   end
 end

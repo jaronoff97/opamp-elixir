@@ -5,10 +5,6 @@ defmodule OpAMPServerWeb.Serializer do
   alias Phoenix.Socket.Message
   alias Phoenix.Socket.Broadcast
 
-  @push 0
-  @reply 1
-  @broadcast 2
-
   def fastlane!(%Broadcast{} = msg) do
     msg = %Message{topic: msg.topic, event: msg.event, payload: msg.payload}
 

@@ -51,7 +51,8 @@ defmodule OpAMPServer.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, ">= 0.0.0"},
-      {:protobuf, "~> 0.10.0"}
+      {:protobuf, "~> 0.10.0"},
+      {:yaml_elixir, "~> 2.9.0"}
     ]
   end
 
