@@ -21,9 +21,51 @@ import "phoenix_html"
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
+import { EditorView, basicSetup } from "codemirror"
+import { EditorState, Compartment } from "@codemirror/state"
+import * as yamlMode from '@codemirror/legacy-modes/mode/yaml';
+import { StreamLanguage, LanguageSupport } from "@codemirror/language"
+
+const yaml = StreamLanguage.define(yamlMode.yaml);
+let state = EditorState.create({
+  extensions: [
+    basicSetup,
+    yaml,
+  ]
+})
+let view = new EditorView({
+	doc: "test",
+	height: 100,
+  state: state,
+  parent: document.getElementById("editor")
+})
+
+hooks = {
+  EditorForm: {
+    mounted() {
+      let textarea = this.el
+
+      // Initialise the editor with the content from the form's textarea
+      let content = textarea.value
+
+    	console.log("----------------")
+      console.log(content)
+      console.log("----------------")
+      let new_state = view.state.update({
+        changes: { from: 0, to: view.state.doc.length, insert: content }
+      })
+      view.dispatch(new_state)
+
+      // Synchronise the form's textarea with the editor on submit
+      this.el.form.addEventListener("submit", (_event) => {
+        textarea.value = view.state.doc.toString()
+      })
+    }
+  }
+}
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}})
+let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: hooks})
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})

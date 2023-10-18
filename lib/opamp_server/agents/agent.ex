@@ -4,7 +4,7 @@ defmodule OpAMPServer.Agents.Agent do
 
   schema "agent" do
     field :instance_id, :string
-    field :effective_config, :map
+    field :effective_config, Opamp.Proto.EffectiveConfig
 
     timestamps(type: :utc_datetime)
   end
@@ -13,6 +13,7 @@ defmodule OpAMPServer.Agents.Agent do
   def changeset(agent, attrs) do
     agent
     |> cast(attrs, [:instance_id, :effective_config])
+    |> unique_constraint(:instance_id)
     |> validate_required([:instance_id])
   end
 end

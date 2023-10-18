@@ -10,12 +10,23 @@
 
 <h1 title="Instance ID"><%= @agent.instance_id %></h1>
 
-<.simple_form for={@form} phx-change="validate" phx-submit="save">
-  <.input field={@form[:effective_config]} type="textarea" />
-  <:actions>
-    <.button>Save</.button>
-  </:actions>
-</.simple_form>
+<.table
+  id="instance"
+  rows={@map_keys}
+  row_click={fn collector -> JS.push("select", value: %{collector: collector}) end}
+>
+  <:col :let={collector} label="Name"><%= collector %></:col>
+</.table>
+
+<div id="editor" phx-update="ignore"></div>
+<%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
+  <.form :let={f} for={@changeset} phx-change="validate" phx-submit="save">
+    <%= label f, "Effective Configuration" do %>
+      <%= textarea f, :effective_config, phx_hook: "EditorForm", value: @agent.effective_config.config_map.config_map[@collector].body %>
+    <% end %>
+    <!-- omitted -->
+  </.form>
+<% end %>
 
 <.back navigate={~p"/agent"}>Back to agent</.back>
 

@@ -47,6 +47,10 @@ defmodule OpAMPServer.Agents do
   """
   def get_agent!(id), do: Repo.get!(Agent, id)
 
+  def get_agent_instance_id(instance_id) do
+    Repo.one(from a in Agent, where: a.instance_id == ^instance_id)
+  end
+
   @doc """
   Creates a agent.
 
@@ -98,6 +102,7 @@ defmodule OpAMPServer.Agents do
   """
   def delete_agent(%Agent{} = agent) do
     Repo.delete(agent)
+    |> broadcast(:agent_deleted)
   end
 
   @doc """

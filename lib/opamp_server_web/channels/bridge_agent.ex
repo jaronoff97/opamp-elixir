@@ -62,7 +62,20 @@ defmodule OpAMPServerWeb.BridgeAgent do
   """
   def put(agent_map, agent_id, value) do
     Agent.update(agent_map, &Map.put(&1, agent_id, value))
-    {:ok, data} = Protobuf.JSON.to_encodable(value)
-    OpAMPServer.Agents.create_agent(%{instance_id: agent_id, effective_config: data})
+    OpAMPServer.Agents.create_agent(%{instance_id: agent_id, effective_config: value})
+  end
+
+  @doc """
+  Puts the `value` for the given `agent_id` in the `agent_map`.
+  """
+  def delete(agent_map, agent_id) do
+    case OpAMPServer.Agents.get_agent_instance_id(agent_id) do
+      nil ->
+        {:error, "not found"}
+      agent ->
+        Agent.update(agent_map, &Map.delete(&1, agent_id))
+        OpAMPServer.Agents.delete_agent(agent)
+    end
+
   end
 end

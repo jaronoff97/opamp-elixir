@@ -45,8 +45,13 @@ defmodule OpAMPServerWeb.AgentLive.Index do
   end
 
   @impl true
+  def handle_info({:agent_deleted, agent}, socket) do
+    {:noreply, stream_delete(socket, :agent_collection, agent)}
+  end
+
+  @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    agent = Agents.get_agent!(id)
+    agent = Agents.get_agent_instance_id(id)
     {:ok, _} = Agents.delete_agent(agent)
 
     {:noreply, stream_delete(socket, :agent_collection, agent)}
