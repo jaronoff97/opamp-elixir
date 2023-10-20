@@ -2,8 +2,9 @@ defmodule OpAMPServer.Agents.Agent do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @primary_key {:id, :string, autogenerate: false}
   schema "agent" do
-    field :instance_id, :string
+    # field :instance_id, :string, primary_key: true
     field :effective_config, Opamp.Proto.EffectiveConfig
 
     timestamps(type: :utc_datetime)
@@ -12,8 +13,8 @@ defmodule OpAMPServer.Agents.Agent do
   @doc false
   def changeset(agent, attrs) do
     agent
-    |> cast(attrs, [:instance_id, :effective_config])
-    |> unique_constraint(:instance_id)
-    |> validate_required([:instance_id])
+    |> cast(attrs, [:id, :effective_config])
+    |> unique_constraint(:id)
+    |> validate_required([:id])
   end
 end

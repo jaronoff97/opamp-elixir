@@ -42,15 +42,22 @@ let view = new EditorView({
 
 hooks = {
   EditorForm: {
+  	updated() {
+
+      let textarea = this.el
+
+      // Initialise the editor with the content from the form's textarea
+      let content = textarea.value
+      let new_state = view.state.update({
+        changes: { from: 0, to: view.state.doc.length, insert: content }
+      })
+      view.dispatch(new_state)
+  	},
     mounted() {
       let textarea = this.el
 
       // Initialise the editor with the content from the form's textarea
       let content = textarea.value
-
-    	console.log("----------------")
-      console.log(content)
-      console.log("----------------")
       let new_state = view.state.update({
         changes: { from: 0, to: view.state.doc.length, insert: content }
       })

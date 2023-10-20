@@ -9,6 +9,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     socket =
       socket
       |> assign_initial_changeset(id)
+      |> assign(:agent_id, id)
       |> assign(:collector, "")
     {:ok, socket}
   end
@@ -32,7 +33,32 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   def handle_event("select", %{"collector" => collector}, socket) do
     {:noreply, socket
       |> assign(:collector, collector)}
-  end 
+  end
+
+  @impl true
+  def handle_event("save", %{"agent" => %{"effective_config" => new_config}}, socket) do
+    # IO.puts "-------------------- save"
+    # IO.inspect new_config
+    # IO.puts "-------------------- save"
+    agent = Agents.get_agent(socket.assigns.agent_id)    
+    updated = %Opamp.Proto.EffectiveConfig{
+      config_map: %Opamp.Proto.AgentConfigMap{
+        config_map: %{
+          socket.assigns.collector => %Opamp.Proto.AgentConfigFile{
+            body: new_config
+          }
+        },
+      }
+    }
+    case Agents.update_agent(agent, %{effective_config: updated}) do
+      {:ok, _agent} -> {:noreply, socket
+                          |> put_flash(:info, "Updated. Running…")}
+      {:error, _error} ->  {:noreply, socket
+                          |> put_flash(:error, "failed!")}
+        
+    end
+    
+  end
 
   defp page_title(:show), do: "Show Agent"
   defp page_title(:edit), do: "Edit Agent"

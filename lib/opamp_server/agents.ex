@@ -47,9 +47,7 @@ defmodule OpAMPServer.Agents do
   """
   def get_agent!(id), do: Repo.get!(Agent, id)
 
-  def get_agent_instance_id(instance_id) do
-    Repo.one(from a in Agent, where: a.instance_id == ^instance_id)
-  end
+  def get_agent(id), do: Repo.get(Agent, id)
 
   @doc """
   Creates a agent.
@@ -83,9 +81,20 @@ defmodule OpAMPServer.Agents do
 
   """
   def update_agent(%Agent{} = agent, attrs) do
-    agent
+    # IO.puts "updating!!"
+    # IO.puts "----------- vvv atts"
+    # IO.inspect attrs
+    # IO.puts "----------- vvv changeset"
+    # IO.inspect Agent.changeset(agent, attrs)
+    # IO.puts "-----------"
+    resp = agent
     |> Agent.changeset(attrs)
     |> Repo.update()
+    |> broadcast(:agent_updated)
+    # IO.puts "----------------- resp"
+    # IO.inspect resp
+    # IO.puts "-----------------"
+    resp
   end
 
   @doc """

@@ -12,7 +12,7 @@
   rows={@streams.agent_collection}
   row_click={fn {_id, agent} -> JS.navigate(~p"/agent/#{agent}") end}
 >
-  <:col :let={{_id, agent}} label="Instance"><%= agent.instance_id %></:col>
+  <:col :let={{_id, agent}} label="Instance"><%= agent.id %></:col>
   <:col :let={{_id, agent}} label="Effective config"><%= map_size(agent.effective_config) %></:col>
   <:action :let={{_id, agent}}>
     <div class="sr-only">

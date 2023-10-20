@@ -19,7 +19,7 @@ defmodule OpAMPServerWeb.AgentLive.FormComponent do
         phx-change="validate"
         phx-submit="save"
       >
-        <.input field={@form[:instance_id]} type="text" label="Instance" />
+        <.input field={@form[:id]} type="text" label="Instance" />
         <:actions>
           <.button phx-disable-with="Saving...">Save Agent</.button>
         </:actions>

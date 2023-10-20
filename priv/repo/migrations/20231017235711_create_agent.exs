@@ -2,8 +2,8 @@ defmodule OpAMPServer.Repo.Migrations.CreateAgent do
   use Ecto.Migration
 
   def change do
-    create table(:agent) do
-      add :instance_id, :string
+    create table(:agent, primary_key: false) do
+      add :id, :string, primary_key: true
       add :effective_config, :map
 
       timestamps(type: :utc_datetime)
