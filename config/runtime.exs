@@ -21,6 +21,8 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
+  # Sleep here?
+  Process.sleep(3000)
   dbhost = System.get_env("PGHOST") || raise "environment variable PGHOST is missing."
   dbport = System.get_env("PGPORT") || raise "environment variable PGPORT is missing."
   database_name = System.get_env("PGDATABASE") || raise "environment variable PGDATABASE is missing."
