@@ -1,0 +1,42 @@
+<.header>
+  Listing Agent
+  <:actions>
+    <.link patch={~p"/agent/new"}>
+      <.button>New Agent</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.table
+  id="agent"
+  rows={@streams.agent_collection}
+  row_click={fn {_id, agent} -> JS.navigate(~p"/agent/#{agent}") end}
+>
+  <:col :let={{_id, agent}} label="Instance"><%= agent.id %></:col>
+  <:col :let={{_id, agent}} label="Effective config"><%= map_size(agent.effective_config) %></:col>
+  <:action :let={{_id, agent}}>
+    <div class="sr-only">
+      <.link navigate={~p"/agent/#{agent}"}>Show</.link>
+    </div>
+    <.link patch={~p"/agent/#{agent}/edit"}>Edit</.link>
+  </:action>
+  <:action :let={{id, agent}}>
+    <.link
+      phx-click={JS.push("delete", value: %{id: agent.id}) |> hide("##{id}")}
+      data-confirm="Are you sure?"
+    >
+      Delete
+    </.link>
+  </:action>
+</.table>
+
+<.modal :if={@live_action in [:new, :edit]} id="agent-modal" show on_cancel={JS.patch(~p"/agent")}>
+  <.live_component
+    module={OpAMPServerWeb.AgentLive.FormComponent}
+    id={@agent.id || :new}
+    title={@page_title}
+    action={@live_action}
+    agent={@agent}
+    patch={~p"/agent"}
+  />
+</.modal>

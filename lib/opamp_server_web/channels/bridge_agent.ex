@@ -15,7 +15,7 @@ defmodule OpAMPServerWeb.BridgeAgent do
     }
   end
 
-  defp server_capabilities do
+  def server_capabilities do
     [
       Opamp.Proto.ServerCapabilities.ServerCapabilities_AcceptsStatus,
       Opamp.Proto.ServerCapabilities.ServerCapabilities_OffersRemoteConfig,
@@ -60,7 +60,27 @@ defmodule OpAMPServerWeb.BridgeAgent do
   @doc """
   Puts the `value` for the given `agent_id` in the `agent_map`.
   """
-  def put(agent_map, agent_id, value) do
-    Agent.update(agent_map, &Map.put(&1, agent_id, value))
+  def put(agent_map, agent_id, effective_config) do
+    case OpAMPServer.Agents.get_agent(agent_id) do
+      nil ->
+        OpAMPServer.Agents.create_agent(%{id: agent_id, effective_config: effective_config})
+      agent ->
+        OpAMPServer.Agents.update_agent(agent, %{effective_config: effective_config})
+    end
+    Agent.update(agent_map, &Map.put(&1, agent_id, effective_config))
+  end
+
+  @doc """
+  Puts the `value` for the given `agent_id` in the `agent_map`.
+  """
+  def delete(agent_map, agent_id) do
+    case OpAMPServer.Agents.get_agent(agent_id) do
+      nil ->
+        {:error, "not found"}
+      agent ->
+        Agent.update(agent_map, &Map.delete(&1, agent_id))
+        OpAMPServer.Agents.delete_agent(agent)
+    end
+
   end
 end

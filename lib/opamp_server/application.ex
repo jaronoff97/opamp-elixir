@@ -17,7 +17,8 @@ defmodule OpAMPServer.Application do
       # Start a worker by calling: OpAMPServer.Worker.start_link(arg)
       # {OpAMPServer.Worker, arg},
       # Start to serve requests, typically the last entry
-      OpAMPServerWeb.Endpoint
+      OpAMPServerWeb.Endpoint,
+      OpAMPServerWeb.Serializer
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html
