@@ -21,21 +21,21 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
-  # Sleep here?
-  Process.sleep(3000)
   dbhost = System.get_env("PGHOST") || raise "environment variable PGHOST is missing."
   dbport = System.get_env("PGPORT") || raise "environment variable PGPORT is missing."
   database_name = System.get_env("PGDATABASE") || raise "environment variable PGDATABASE is missing."
   dbuser = System.get_env("PGUSER") || raise "environment variable PGUSER is missing."
   dbpass = System.get_env("PGPASSWORD") || raise "environment variable PGPASSWORD is missing."
 
-  database_url = "ecto://#{dbuser}:#{dbpass}@#{dbhost}:#{dbport}/#{database_name}"
-
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :opamp_server, OpAMPServer.Repo,
     ssl: false,
-    url: database_url,
+    username: dbuser,
+    password: dbpass,
+    hostname: dbhost,
+    database: database_name,
+    port: dbport,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
 
