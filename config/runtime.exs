@@ -28,6 +28,14 @@ if config_env() == :prod do
   dbpass = System.get_env("PGPASSWORD") || raise "environment variable PGPASSWORD is missing."
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+  IO.puts "--------"
+  IO.inspect maybe_ipv6
+  IO.inspect dbuser
+  IO.inspect dbpass
+  IO.inspect dbhost
+  IO.inspect database_name
+  IO.inspect dbport
+  IO.puts "--------"
 
   config :opamp_server, OpAMPServer.Repo,
     ssl: false,
