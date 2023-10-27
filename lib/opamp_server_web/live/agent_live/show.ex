@@ -6,12 +6,15 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    socket =
-      socket
-      |> assign_initial_changeset(id)
-      |> assign(:agent_id, id)
-      |> assign(:collector, "")
-    {:ok, socket}
+    case Agents.get_agent(id) do
+      nil -> {:ok, redirect(socket, to: ~p"/agent")}
+      agent ->
+        if connected?(socket), do: OpAMPServer.Agents.subscribe_to_agent(id)
+        {:ok, socket
+              |> assign_initial_changeset(agent)
+              |> assign(:agent_id, id)
+              |> assign(:collector, "") }
+    end
   end
 
   @impl true
@@ -22,6 +25,27 @@ defmodule OpAMPServerWeb.AgentLive.Show do
      |> assign(:page_title, page_title(socket.assigns.live_action))
      |> assign(:agent, agent)
      |> assign(map_keys: Map.keys(agent.effective_config.config_map.config_map))}
+  end
+
+  @impl true
+  def handle_info({:agent_created, _agent}, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:agent_updated, agent}, socket) do
+    if agent.remote_config_status != nil do
+      {:noreply, socket 
+                  |> assign_initial_changeset(agent)
+                  |> set_flash(agent.remote_config_status)}
+    else
+      {:noreply, assign_initial_changeset(socket, agent)}
+    end
+  end
+
+  @impl true
+  def handle_info({:agent_deleted, _agent}, socket) do
+    {:noreply, redirect(socket, to: ~p"/agent")}
   end
 
   @impl true
@@ -37,9 +61,6 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
   @impl true
   def handle_event("save", %{"agent" => %{"effective_config" => new_config}}, socket) do
-    # IO.puts "-------------------- save"
-    # IO.inspect new_config
-    # IO.puts "-------------------- save"
     agent = Agents.get_agent(socket.assigns.agent_id)    
     updated = %Opamp.Proto.EffectiveConfig{
       config_map: %Opamp.Proto.AgentConfigMap{
@@ -63,12 +84,23 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   defp page_title(:show), do: "Show Agent"
   defp page_title(:edit), do: "Edit Agent"
 
+  defp set_flash(socket, remote_config_status) do
+      case remote_config_status.status do
+        :RemoteConfigStatuses_UNSET ->
+          put_flash(socket, :info, remote_config_status.error_message)
+        :RemoteConfigStatuses_APPLIED ->
+          put_flash(socket, :info, "Success applying!")
+        :RemoteConfigStatuses_APPLYING ->
+          put_flash(socket, :info, "applying...")
+        :RemoteConfigStatuses_FAILED ->
+          put_flash(socket, :error, remote_config_status.error_message)
+      end
+  end
 
-  defp assign_initial_changeset(socket, id) do
+  defp assign_initial_changeset(socket, agent) do
     # Assign a changeset to the most recent snippet, if one exists, or a new snippet.
   
-    changeset = Agents.get_agent!(id)
-      |> Agents.Agent.changeset(%{})
+    changeset = Agents.Agent.changeset(agent, %{})
 
     socket 
     |> assign(changeset: changeset)

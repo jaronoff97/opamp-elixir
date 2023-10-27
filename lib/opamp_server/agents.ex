@@ -12,9 +12,14 @@ defmodule OpAMPServer.Agents do
     Phoenix.PubSub.subscribe(OpAMPServer.PubSub, "agents")
   end
 
+  def subscribe_to_agent(agent_id) do
+    Phoenix.PubSub.subscribe(OpAMPServer.PubSub, "agents:" <> agent_id)
+  end
+
   defp broadcast({:error, _reason} = error, _event), do: error
   defp broadcast({:ok, agent}, event) do
     Phoenix.PubSub.broadcast(OpAMPServer.PubSub, "agents", {event, agent})
+    Phoenix.PubSub.broadcast(OpAMPServer.PubSub, "agents:" <> agent.id, {event, agent})
     {:ok, agent}
   end
 
