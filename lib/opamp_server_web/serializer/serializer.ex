@@ -73,10 +73,11 @@ defmodule OpAMPServerWeb.Serializer do
          data::binary
        >>) do
     proto = Opamp.Proto.AgentToServer.decode(data)
-    IO.puts "-----------------------"
-    IO.puts "is a memember?"
-    IO.inspect Agent.get(:connections, &MapSet.member?(&1, proto.instance_uid))
-    IO.puts "-----------------------"
+    # IO.puts "-----------------------"
+    # IO.puts "is a memember?"
+    # IO.inspect Agent.get(:connections, &MapSet.member?(&1, proto.instance_uid))
+    # IO.inspect Agent.get(:connections, &MapSet.to_list/1)
+    # IO.puts "-----------------------"
     case Agent.get(:connections, &MapSet.member?(&1, proto.instance_uid)) do
       false -> respond_join(proto)
       true -> respond_heartbeat(proto)
@@ -85,6 +86,7 @@ defmodule OpAMPServerWeb.Serializer do
 
   defp respond_join(proto)do
     Agent.update(:connections, &MapSet.put(&1, proto.instance_uid))
+    IO.puts "JOINING"
     %Message{
       topic: "agents:" <> proto.instance_uid,
       event: "phx_join",

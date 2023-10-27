@@ -79,6 +79,7 @@ defmodule OpAMPServerWeb.BridgeAgent do
         {:error, "not found"}
       agent ->
         Agent.update(agent_map, &Map.delete(&1, agent_id))
+        OpAMPServerWeb.Serializer.remove(agent_id)
         OpAMPServer.Agents.delete_agent(agent)
     end
 

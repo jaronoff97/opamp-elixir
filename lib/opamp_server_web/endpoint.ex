@@ -17,7 +17,8 @@ defmodule OpAMPServerWeb.Endpoint do
       websocket: [
         connect_info: [session: @session_options],
         path: "", 
-        serializer: [{OpAMPServerWeb.Serializer, "1.0.0"}]
+        serializer: [{OpAMPServerWeb.Serializer, "1.0.0"}],
+        timeout: 900000 # 15 minutes
       ],
       longpoll: false
 

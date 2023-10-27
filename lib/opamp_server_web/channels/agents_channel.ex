@@ -33,7 +33,7 @@ defmodule OpAMPServerWeb.AgentsChannel do
       }
     }
     # IO.puts "------------ configmap pre-send"
-    # IO.inspect(payload.effective_config.config_map)
+    # IO.inspect(payload.remote_config_status)
     # IO.puts "------------ configmap pre-send"
     push(socket, "", server_to_agent)
     {:noreply, socket}
@@ -52,7 +52,15 @@ defmodule OpAMPServerWeb.AgentsChannel do
 
   @impl true
   def handle_in("heartbeat", payload, socket) do
-    {:reply, {:ok, payload}, socket}
+    server_to_agent = %Opamp.Proto.ServerToAgent{
+      instance_uid: socket.assigns.agent_id,
+      capabilities: BridgeAgent.server_capabilities()
+    }
+    IO.puts "---------------"
+    IO.inspect payload.remote_config_status
+    IO.puts "---------------"
+
+    {:reply, {:ok, server_to_agent}, socket}
   end
 
   # It is also common to receive messages from the client and
@@ -65,7 +73,14 @@ defmodule OpAMPServerWeb.AgentsChannel do
 
   @impl true
   def terminate(reason, socket) do
-    IO.inspect reason
+    case reason do
+      {:shutdown, :timeout} ->
+        IO.puts "#{socket.assigns.agent_id} timed out"
+      {:shutdown, :peer_closed} -> 
+        IO.puts "#{socket.assigns.agent_id} disconnected"
+      other ->
+        IO.inspect other
+    end
     BridgeAgent.delete(:opampagent, socket.assigns.agent_id)
     OpAMPServerWeb.Serializer.remove(socket.assigns.agent_id)
     {:shutdown, socket.assigns.agent_id}
