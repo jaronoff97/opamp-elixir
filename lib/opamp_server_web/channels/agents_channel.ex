@@ -64,7 +64,8 @@ defmodule OpAMPServerWeb.AgentsChannel do
     # IO.puts "---------------"
     # IO.inspect payload.remote_config_status
     # IO.puts "---------------"
-    create_or_update(socket.assigns.agent_id, payload)
+    new_payload = Map.merge(payload, %{health: %Opamp.Proto.ComponentHealth{status_time_unix_nano: System.os_time(:nanosecond)}})
+    create_or_update(socket.assigns.agent_id, new_payload)
 
     {:reply, {:ok, server_to_agent}, socket}
   end
@@ -107,12 +108,14 @@ defmodule OpAMPServerWeb.AgentsChannel do
         OpAMPServer.Agents.create_agent(
           %{id: agent_id,
             effective_config: payload.effective_config,
-            remote_config_status: payload.remote_config_status
+            remote_config_status: payload.remote_config_status,
+            component_health: payload.health
           })
       agent ->
         OpAMPServer.Agents.update_agent(agent, %{
           effective_config: payload.effective_config,
-          remote_config_status: payload.remote_config_status
+          remote_config_status: payload.remote_config_status,
+          component_health: payload.health
         })
     end
   end

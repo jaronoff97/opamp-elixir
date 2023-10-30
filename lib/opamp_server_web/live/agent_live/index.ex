@@ -15,6 +15,11 @@ defmodule OpAMPServerWeb.AgentLive.Index do
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
+  def time_since(updated_datetime) do
+    DateTime.utc_now()
+    |> DateTime.diff(DateTime.from_unix!(updated_datetime, :nanosecond))
+  end
+
   defp apply_action(socket, :edit, %{"id" => id}) do
     socket
     |> assign(:page_title, "Edit Agent")
@@ -46,7 +51,7 @@ defmodule OpAMPServerWeb.AgentLive.Index do
 
   @impl true
   def handle_info({:agent_updated, agent}, socket) do
-    {:noreply, socket |> stream_delete(:agent_collection, agent) |> stream_insert(:agent_collection, agent)}
+    {:noreply, socket |> stream_delete(:agent_collection, agent) |> stream_insert(:agent_collection, agent, reset: true)}
   end
 
   @impl true
@@ -60,5 +65,10 @@ defmodule OpAMPServerWeb.AgentLive.Index do
     {:ok, _} = Agents.delete_agent(agent)
 
     {:noreply, stream_delete(socket, :agent_collection, agent)}
+  end
+
+  def render_time(last_heartbeat) do
+    DateTime.from_unix!(last_heartbeat, :nanosecond)
+    |> Calendar.strftime("%I:%M:%S %p")
   end
 end

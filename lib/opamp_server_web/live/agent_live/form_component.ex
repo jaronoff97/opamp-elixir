@@ -67,21 +67,6 @@ defmodule OpAMPServerWeb.AgentLive.FormComponent do
     end
   end
 
-  defp save_agent(socket, :new, agent_params) do
-    case Agents.create_agent(agent_params) do
-      {:ok, agent} ->
-        notify_parent({:saved, agent})
-
-        {:noreply,
-         socket
-         |> put_flash(:info, "Agent created successfully")
-         |> push_patch(to: socket.assigns.patch)}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign_form(socket, changeset)}
-    end
-  end
-
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
     assign(socket, :form, to_form(changeset))
   end

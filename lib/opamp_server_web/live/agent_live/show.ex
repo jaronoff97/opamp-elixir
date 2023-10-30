@@ -84,18 +84,22 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   defp page_title(:show), do: "Show Agent"
   defp page_title(:edit), do: "Edit Agent"
 
-  defp set_flash(socket, remote_config_status) do
-      case remote_config_status.status do
-        :RemoteConfigStatuses_UNSET ->
-          put_flash(socket, :info, remote_config_status.error_message)
-        :RemoteConfigStatuses_APPLIED ->
-          put_flash(socket, :info, "Success applying!")
-        :RemoteConfigStatuses_APPLYING ->
-          put_flash(socket, :info, "applying...")
-        :RemoteConfigStatuses_FAILED ->
-          put_flash(socket, :error, remote_config_status.error_message)
-      end
+  defp set_flash(socket, remote_config_status) when remote_config_status.last_remote_config_hash != socket.assigns.last_remote_config_hash do
+    IO.inspect remote_config_status
+    case remote_config_status.status do
+      :RemoteConfigStatuses_UNSET ->
+        put_flash(socket, :info, remote_config_status.error_message)
+      :RemoteConfigStatuses_APPLIED ->
+        socket
+        |> assign(:config_hash, remote_config_status.last_remote_config_hash)
+        |> put_flash(:info, "Success applying!")
+      :RemoteConfigStatuses_APPLYING ->
+        put_flash(socket, :info, "applying...")
+      :RemoteConfigStatuses_FAILED ->
+        put_flash(socket, :error, remote_config_status.error_message)
+    end
   end
+  defp set_flash(socket, _remote_config_status), do: socket
 
   defp assign_initial_changeset(socket, agent) do
     # Assign a changeset to the most recent snippet, if one exists, or a new snippet.
@@ -104,6 +108,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
     socket 
     |> assign(changeset: changeset)
+    |> assign(config_hash: agent.remote_config_status.last_remote_config_hash)
     |> assign(form: Phoenix.Component.to_form(changeset))
   end
 end

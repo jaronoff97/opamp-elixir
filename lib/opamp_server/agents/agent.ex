@@ -7,6 +7,7 @@ defmodule OpAMPServer.Agents.Agent do
     # field :instance_id, :string, primary_key: true
     field :effective_config, Opamp.Proto.EffectiveConfig
     field :remote_config_status, Opamp.Proto.RemoteConfigStatus
+    field :component_health, Opamp.Proto.ComponentHealth
 
     timestamps(type: :utc_datetime)
   end
@@ -14,8 +15,8 @@ defmodule OpAMPServer.Agents.Agent do
   @doc false
   def changeset(agent, attrs) do
     agent
-    |> cast(attrs, [:id, :effective_config, :remote_config_status])
-    |> remove_nil([:effective_config, :remote_config_status])
+    |> cast(attrs, [:id, :effective_config, :remote_config_status, :component_health])
+    |> remove_nil([:effective_config, :remote_config_status, :component_health])
     |> unique_constraint(:id)
     |> validate_required([:id])
   end
