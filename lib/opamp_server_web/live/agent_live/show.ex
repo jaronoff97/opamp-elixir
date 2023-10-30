@@ -13,7 +13,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
         {:ok, socket
               |> assign_initial_changeset(agent)
               |> assign(:agent_id, id)
-              |> assign(:collector, "") }
+              |> assign(:collector, "")}
     end
   end
 
@@ -34,12 +34,15 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
   @impl true
   def handle_info({:agent_updated, agent}, socket) do
-    if agent.remote_config_status != nil do
-      {:noreply, socket 
+    IO.puts "-------------"
+    IO.inspect agent.remote_config_status
+    IO.puts "-------------"
+    if agent.remote_config_status != nil && agent.remote_config_status.last_remote_config_hash != socket.assigns.config_hash do
+      {:noreply, socket
                   |> assign_initial_changeset(agent)
                   |> set_flash(agent.remote_config_status)}
     else
-      {:noreply, assign_initial_changeset(socket, agent)}
+      {:noreply, socket}
     end
   end
 
@@ -55,8 +58,14 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
   @impl true
   def handle_event("select", %{"collector" => collector}, socket) do
+    if socket.assigns.collector == collector do
     {:noreply, socket
-      |> assign(:collector, collector)}
+      |> assign(:collector, nil)
+      |> push_event("reset", %{})}
+    else
+    {:noreply, socket
+      |> assign(:collector, collector)} 
+    end 
   end
 
   @impl true
@@ -73,6 +82,8 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     }
     case Agents.update_agent(agent, %{effective_config: updated}) do
       {:ok, _agent} -> {:noreply, socket
+                          |> assign(:collector, nil)
+                          |> push_event("reset", %{})
                           |> put_flash(:info, "Updated. Running…")}
       {:error, _error} ->  {:noreply, socket
                           |> put_flash(:error, "failed!")}
@@ -85,7 +96,6 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   defp page_title(:edit), do: "Edit Agent"
 
   defp set_flash(socket, remote_config_status) when remote_config_status.last_remote_config_hash != socket.assigns.last_remote_config_hash do
-    IO.inspect remote_config_status
     case remote_config_status.status do
       :RemoteConfigStatuses_UNSET ->
         put_flash(socket, :info, remote_config_status.error_message)

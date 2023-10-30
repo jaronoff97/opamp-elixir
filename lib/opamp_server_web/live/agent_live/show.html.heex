@@ -18,7 +18,7 @@
   <:col :let={collector} label="Name"><%= collector %></:col>
 </.table>
 
-<div id="editor" phx-update="ignore"></div>
+<div id="editor"></div>
 <%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
   <.form :let={f} for={@changeset} phx-change="validate" phx-submit="save">
     <%= label f, "Effective Configuration" do %>

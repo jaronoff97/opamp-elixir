@@ -33,39 +33,44 @@ let state = EditorState.create({
     yaml,
   ]
 })
-let view = new EditorView({
-	doc: "test",
-	height: 100,
-  state: state,
-  parent: document.getElementById("editor")
-})
 
 hooks = {
   EditorForm: {
   	updated() {
-
       let textarea = this.el
 
       // Initialise the editor with the content from the form's textarea
       let content = textarea.value
-      let new_state = view.state.update({
-        changes: { from: 0, to: view.state.doc.length, insert: content }
+      let new_state = this.view.state.update({
+        changes: { from: 0, to: this.view.state.doc.length, insert: content }
       })
-      view.dispatch(new_state)
+      this.view.dispatch(new_state)
   	},
     mounted() {
+	  this.view = new EditorView({
+	  	doc: "test",
+	  	height: 100,
+	    state: state,
+	    parent: document.getElementById("editor")
+	  })
       let textarea = this.el
 
       // Initialise the editor with the content from the form's textarea
       let content = textarea.value
-      let new_state = view.state.update({
-        changes: { from: 0, to: view.state.doc.length, insert: content }
+      let new_state = this.view.state.update({
+        changes: { from: 0, to: this.view.state.doc.length, insert: content }
       })
-      view.dispatch(new_state)
+      this.view.dispatch(new_state)
 
       // Synchronise the form's textarea with the editor on submit
       this.el.form.addEventListener("submit", (_event) => {
-        textarea.value = view.state.doc.toString()
+        textarea.value = this.view.state.doc.toString()
+      })
+      this.handleEvent("reset", (_data) => {
+		let new_state = this.view.state.update({
+		  changes: { from: 0, to: 0, insert: "" }
+		})
+		this.view.dispatch(new_state)
       })
     }
   }
