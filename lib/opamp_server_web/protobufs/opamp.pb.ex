@@ -392,6 +392,37 @@ defmodule Opamp.Proto.ComponentHealth do
     type: Opamp.Proto.ComponentHealth.ComponentHealthMapEntry,
     json_name: "componentHealthMap",
     map: true
+
+
+
+  use Ecto.Type
+  @impl true
+  def type, do: :binary
+
+  @doc """
+  Provides custom casting rules for params. Nothing changes here.
+  We only need to handle deserialization.
+  """
+  def cast(:any, term), do: {:ok, term}
+  @impl true
+  def cast(term), do: {:ok, term}
+
+  @doc """
+  Convert the map from the database back to
+  the desired term.
+  """
+  @impl true
+  def load(term) when is_binary(term) do
+    {:ok, Opamp.Proto.ComponentHealth.decode(term)}
+  end
+
+  @doc """
+  Converting the data structure to map for storage.
+  """
+  @impl true
+  def dump(term) do
+    {:ok, Opamp.Proto.ComponentHealth.encode(term)}
+  end
 end
 
 defmodule Opamp.Proto.EffectiveConfig do
@@ -439,6 +470,35 @@ defmodule Opamp.Proto.RemoteConfigStatus do
   field :last_remote_config_hash, 1, type: :bytes, json_name: "lastRemoteConfigHash"
   field :status, 2, type: Opamp.Proto.RemoteConfigStatuses, enum: true
   field :error_message, 3, type: :string, json_name: "errorMessage"
+
+  use Ecto.Type
+  @impl true
+  def type, do: :binary
+
+  @doc """
+  Provides custom casting rules for params. Nothing changes here.
+  We only need to handle deserialization.
+  """
+  def cast(:any, term), do: {:ok, term}
+  @impl true
+  def cast(term), do: {:ok, term}
+
+  @doc """
+  Convert the map from the database back to
+  the desired term.
+  """
+  @impl true
+  def load(term) when is_binary(term) do
+    {:ok, Opamp.Proto.RemoteConfigStatus.decode(term)}
+  end
+
+  @doc """
+  Converting the data structure to map for storage.
+  """
+  @impl true
+  def dump(term) do
+    {:ok, Opamp.Proto.RemoteConfigStatus.encode(term)}
+  end
 end
 
 defmodule Opamp.Proto.PackageStatuses.PackagesEntry do
@@ -493,6 +553,35 @@ defmodule Opamp.Proto.AgentRemoteConfig do
 
   field :config, 1, type: Opamp.Proto.AgentConfigMap
   field :config_hash, 2, type: :bytes, json_name: "configHash"
+  
+  use Ecto.Type
+  @impl true
+  def type, do: :binary
+
+  @doc """
+  Provides custom casting rules for params. Nothing changes here.
+  We only need to handle deserialization.
+  """
+  def cast(:any, term), do: {:ok, term}
+  @impl true
+  def cast(term), do: {:ok, term}
+
+  @doc """
+  Convert the map from the database back to
+  the desired term.
+  """
+  @impl true
+  def load(term) when is_binary(term) do
+    {:ok, Opamp.Proto.AgentRemoteConfig.decode(term)}
+  end
+
+  @doc """
+  Converting the data structure to map for storage.
+  """
+  @impl true
+  def dump(term) do
+    {:ok, Opamp.Proto.AgentRemoteConfig.encode(term)}
+  end
 end
 
 defmodule Opamp.Proto.AgentConfigMap.ConfigMapEntry do

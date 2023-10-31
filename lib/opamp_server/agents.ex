@@ -12,9 +12,14 @@ defmodule OpAMPServer.Agents do
     Phoenix.PubSub.subscribe(OpAMPServer.PubSub, "agents")
   end
 
+  def subscribe_to_agent(agent_id) do
+    Phoenix.PubSub.subscribe(OpAMPServer.PubSub, "agents:" <> agent_id)
+  end
+
   defp broadcast({:error, _reason} = error, _event), do: error
   defp broadcast({:ok, agent}, event) do
     Phoenix.PubSub.broadcast(OpAMPServer.PubSub, "agents", {event, agent})
+    Phoenix.PubSub.broadcast(OpAMPServer.PubSub, "agents:" <> agent.id, {event, agent})
     {:ok, agent}
   end
 
@@ -81,19 +86,10 @@ defmodule OpAMPServer.Agents do
 
   """
   def update_agent(%Agent{} = agent, attrs) do
-    # IO.puts "updating!!"
-    # IO.puts "----------- vvv atts"
-    # IO.inspect attrs
-    # IO.puts "----------- vvv changeset"
-    # IO.inspect Agent.changeset(agent, attrs)
-    # IO.puts "-----------"
     resp = agent
     |> Agent.changeset(attrs)
     |> Repo.update()
     |> broadcast(:agent_updated)
-    # IO.puts "----------------- resp"
-    # IO.inspect resp
-    # IO.puts "-----------------"
     resp
   end
 
@@ -125,5 +121,12 @@ defmodule OpAMPServer.Agents do
   """
   def change_agent(%Agent{} = agent, attrs \\ %{}) do
     Agent.changeset(agent, attrs)
+  end
+
+  def generate_desired_remote_config(conf) do
+    %Opamp.Proto.AgentRemoteConfig{
+        config_hash: :crypto.hash(:md5, Opamp.Proto.AgentConfigMap.encode(conf)),
+        config: conf
+      }
   end
 end

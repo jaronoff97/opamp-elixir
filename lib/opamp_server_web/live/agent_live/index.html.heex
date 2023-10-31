@@ -8,7 +8,10 @@
   row_click={fn {_id, agent} -> JS.navigate(~p"/agent/#{agent}") end}
 >
   <:col :let={{_id, agent}} label="Instance"><%= agent.id %></:col>
-  <:col :let={{_id, agent}} label="Effective config"><%= map_size(agent.effective_config) %></:col>
+  <:col :let={{_id, agent}} label="Last Hearbeat">
+    <%= render_time(agent.component_health.status_time_unix_nano) %>
+  </:col>
+  <:col :let={{_id, agent}} label="Number of Collectors"><%= map_size(agent.effective_config.config_map.config_map) %></:col>
   <:action :let={{_id, agent}}>
     <div class="sr-only">
       <.link navigate={~p"/agent/#{agent}"}>Show</.link>
