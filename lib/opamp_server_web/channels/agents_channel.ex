@@ -31,10 +31,7 @@ defmodule OpAMPServerWeb.AgentsChannel do
     server_to_agent = %Opamp.Proto.ServerToAgent{
       instance_uid: socket.assigns.agent_id,
       capabilities: server_capabilities(),
-      remote_config: %Opamp.Proto.AgentRemoteConfig{
-        config_hash: :crypto.hash(:md5, Opamp.Proto.AgentConfigMap.encode(payload.effective_config.config_map)),
-        config: payload.effective_config.config_map
-      }
+      remote_config: payload.desired_remote_config
     }
     # IO.puts "------------ configmap pre-send"
     # IO.inspect(payload.remote_config_status)
@@ -64,8 +61,7 @@ defmodule OpAMPServerWeb.AgentsChannel do
     # IO.puts "---------------"
     # IO.inspect payload.remote_config_status
     # IO.puts "---------------"
-    new_payload = Map.merge(payload, %{health: %Opamp.Proto.ComponentHealth{status_time_unix_nano: System.os_time(:nanosecond)}})
-    create_or_update(socket.assigns.agent_id, new_payload)
+    create_or_update(socket.assigns.agent_id, payload)
 
     {:reply, {:ok, server_to_agent}, socket}
   end

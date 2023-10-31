@@ -6,6 +6,7 @@ defmodule OpAMPServer.Agents.Agent do
   schema "agent" do
     # field :instance_id, :string, primary_key: true
     field :effective_config, Opamp.Proto.EffectiveConfig
+    field :desired_remote_config, Opamp.Proto.AgentRemoteConfig
     field :remote_config_status, Opamp.Proto.RemoteConfigStatus
     field :component_health, Opamp.Proto.ComponentHealth
 
@@ -15,8 +16,8 @@ defmodule OpAMPServer.Agents.Agent do
   @doc false
   def changeset(agent, attrs) do
     agent
-    |> cast(attrs, [:id, :effective_config, :remote_config_status, :component_health])
-    |> remove_nil([:effective_config, :remote_config_status, :component_health])
+    |> cast(attrs, [:id, :effective_config, :remote_config_status, :component_health, :desired_remote_config])
+    |> remove_nil([:effective_config, :remote_config_status, :component_health, :desired_remote_config])
     |> unique_constraint(:id)
     |> validate_required([:id])
   end

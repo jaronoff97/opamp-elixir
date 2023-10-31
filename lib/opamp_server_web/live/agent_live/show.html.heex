@@ -1,21 +1,20 @@
 <.header>
   Agent <%= @agent.id %>
-  <:subtitle>This is a agent record from your database.</:subtitle>
-  <:actions>
-    <.link patch={~p"/agent/#{@agent}/show/edit"} phx-click={JS.push_focus()}>
-      <.button>Edit agent</.button>
-    </.link>
-  </:actions>
+  <:subtitle>
+    Last Heartbeat: <%= render_time(@agent.component_health.status_time_unix_nano) %> UTC
+    <br/>
+    Healthy? <%= @agent.component_health.healthy %>
+  </:subtitle>
 </.header>
-
-<h1 title="Instance ID"><%= @agent.id %></h1>
 
 <.table
   id="instance"
   rows={@map_keys}
   row_click={fn collector -> JS.push("select", value: %{collector: collector}) end}
 >
-  <:col :let={collector} label="Name"><%= collector %></:col>
+  <:col :let={collector} label="Collector Name"><%= collector %></:col>
+  <:col :let={collector} label="Replicas"><%= @agent.component_health.component_health_map[collector].status %></:col>
+  <:col :let={collector} label="Start Time"><%= render_time(@agent.component_health.component_health_map[collector].start_time_unix_nano) %> UTC</:col>
 </.table>
 
 <div id="editor"></div>
