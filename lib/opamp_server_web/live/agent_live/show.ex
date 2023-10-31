@@ -114,4 +114,11 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     DateTime.from_unix!(last_heartbeat, :nanosecond)
     |> Calendar.strftime("%B %-d, %Y %I:%M:%S %p")
   end
+
+  def managed?(agent = %{}, collector) do
+    case Map.get(agent.effective_config.config_map.config_map[collector], :body) do
+      nil -> "❓"
+      body -> case String.contains?(body, "opentelemetry.io/opamp-managed") do true -> "✅"; _ -> "🚫" end
+    end
+  end
 end

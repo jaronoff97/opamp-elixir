@@ -12,8 +12,9 @@
   rows={@map_keys}
   row_click={fn collector -> JS.push("select", value: %{collector: collector}) end}
 >
+  <:col :let={collector} label="Managed?"><%= managed?(@agent, collector) %></:col>
   <:col :let={collector} label="Collector Name"><%= collector %></:col>
-  <:col :let={collector} label="Replicas"><%= @agent.component_health.component_health_map[collector].status %></:col>
+  <:col :let={collector} label="Replicas"><%= Map.get(@agent.component_health.component_health_map[collector], :status, "") %></:col>
   <:col :let={collector} label="Start Time"><%= render_time(@agent.component_health.component_health_map[collector].start_time_unix_nano) %> UTC</:col>
 </.table>
 

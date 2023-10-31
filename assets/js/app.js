@@ -37,6 +37,12 @@ let state = EditorState.create({
 hooks = {
   EditorForm: {
   	updated() {
+	  this.view = new EditorView({
+	  	doc: "test",
+	  	height: 100,
+	    state: state,
+	    parent: document.getElementById("editor")
+	  })
       let textarea = this.el
 
       // Initialise the editor with the content from the form's textarea
