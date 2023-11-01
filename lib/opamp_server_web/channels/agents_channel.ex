@@ -105,13 +105,15 @@ defmodule OpAMPServerWeb.AgentsChannel do
           %{id: agent_id,
             effective_config: payload.effective_config,
             remote_config_status: payload.remote_config_status,
-            component_health: payload.health
+            component_health: payload.health,
+            description: payload.agent_description
           })
       agent ->
         OpAMPServer.Agents.update_agent(agent, %{
           effective_config: payload.effective_config,
           remote_config_status: payload.remote_config_status,
-          component_health: payload.health
+          component_health: payload.health,
+          description: payload.agent_description
         })
     end
   end

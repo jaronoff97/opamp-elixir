@@ -7,6 +7,7 @@
   rows={@streams.agent_collection}
   row_click={fn {_id, agent} -> JS.navigate(~p"/agent/#{agent}") end}
 >
+  <:col :let={{_id, agent}} label="Host Name"><%= find_description_field(agent.description, "host.name") %></:col>
   <:col :let={{_id, agent}} label="Instance"><%= agent.id %></:col>
   <:col :let={{_id, agent}} label="Last Hearbeat">
     <%= render_time(agent.component_health.status_time_unix_nano) %>
