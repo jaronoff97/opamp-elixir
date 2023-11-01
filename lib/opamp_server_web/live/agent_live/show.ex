@@ -118,15 +118,21 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   def managed?(nil, _collector), do: "❓"
   def managed?(agent = %{}, collector) do
     agent.effective_config.config_map.config_map[collector]
-    |> get_managed_str
+    |> get_effective_config_field(:body)
+    |> contains_managed
   end
 
-  defp get_managed_str(nil), do: "❓"
-  defp get_managed_str(config_map) do
-    case String.contains?(Map.get(config_map, :body, ""), "opentelemetry.io/opamp-managed") do 
+  defp contains_managed(nil), do: "❓"
+  defp contains_managed(body) do
+    case String.contains?(body, "opentelemetry.io/opamp-managed") do 
       true -> "✅"
        _ -> "🚫"
     end
+  end
+
+  defp get_effective_config_field(nil, _field), do: nil
+  defp get_effective_config_field(config_map, field) do
+    Map.get(config_map, field, "")
   end
 
   def find_description_field(description, field) do
