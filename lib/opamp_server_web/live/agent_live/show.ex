@@ -121,4 +121,20 @@ defmodule OpAMPServerWeb.AgentLive.Show do
       body -> case String.contains?(body, "opentelemetry.io/opamp-managed") do true -> "✅"; _ -> "🚫" end
     end
   end
+
+  def find_description_field(description, field) do
+    Enum.concat(description.identifying_attributes, description.non_identifying_attributes)
+    |> Enum.find(fn kv -> kv.key == field end)
+    |> get_value
+  end
+
+ defp get_value(nil), do: ""
+ defp get_value(kv) do
+  case kv.value.value do
+    {:string_value, v} -> v
+    {other, _v} ->
+      IO.puts "unable to retrieve value for type #{other}"
+      ""
+  end
+ end
 end

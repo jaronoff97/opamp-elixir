@@ -4,6 +4,12 @@
     Last Heartbeat: <%= render_time(@agent.component_health.status_time_unix_nano) %> UTC
     <br/>
     Healthy? <%= @agent.component_health.healthy %>
+    <br/>
+    Service Name: <%= find_description_field(@agent.description, "service.name") %>
+    <br/>
+    Host Name: <%= find_description_field(@agent.description, "host.name") %>
+    <br/>
+    OS Family: <%= find_description_field(@agent.description, "os.family") %>
   </:subtitle>
 </.header>
 
@@ -15,7 +21,8 @@
   <:col :let={collector} label="Managed?"><%= managed?(@agent, collector) %></:col>
   <:col :let={collector} label="Collector Name"><%= collector %></:col>
   <:col :let={collector} label="Replicas"><%= Map.get(@agent.component_health.component_health_map[collector], :status, "") %></:col>
-  <:col :let={collector} label="Start Time"><%= render_time(@agent.component_health.component_health_map[collector].start_time_unix_nano) %> UTC</:col>
+  <:col :let={collector} label="Start Time"><%= render_time(@agent.component_health.component_health_map[collector].start_time_unix_nano) %> UTC</:col> 
+  <:col :let={collector} label="Last Heartbeat"><%= render_time(@agent.component_health.component_health_map[collector].status_time_unix_nano) %> UTC</:col>
 </.table>
 
 <div id="editor"></div>
