@@ -115,10 +115,17 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     |> Calendar.strftime("%B %-d, %Y %I:%M:%S %p")
   end
 
+  def managed?(nil, _collector), do: "❓"
   def managed?(agent = %{}, collector) do
-    case Map.get(agent.effective_config.config_map.config_map[collector], :body) do
-      nil -> "❓"
-      body -> case String.contains?(body, "opentelemetry.io/opamp-managed") do true -> "✅"; _ -> "🚫" end
+    agent.effective_config.config_map.config_map[collector]
+    |> get_managed_str
+  end
+
+  defp get_managed_str(nil), do: "❓"
+  defp get_managed_str(config_map) do
+    case String.contains?(Map.get(config_map, :body, ""), "opentelemetry.io/opamp-managed") do 
+      true -> "✅"
+       _ -> "🚫"
     end
   end
 
