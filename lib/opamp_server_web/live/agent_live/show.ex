@@ -139,6 +139,8 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     |> assign(form: Phoenix.Component.to_form(changeset))
   end
 
+  def render_time(nil), do: ""
+
   def render_time(last_heartbeat) do
     DateTime.from_unix!(last_heartbeat, :nanosecond)
     |> Calendar.strftime("%B %-d, %Y %I:%M:%S %p")
