@@ -17,6 +17,7 @@ defmodule OpAMPServer.Agents do
   end
 
   defp broadcast({:error, _reason} = error, _event), do: error
+
   defp broadcast({:ok, agent}, event) do
     Phoenix.PubSub.broadcast(OpAMPServer.PubSub, "agents", {event, agent})
     Phoenix.PubSub.broadcast(OpAMPServer.PubSub, "agents:" <> agent.id, {event, agent})
@@ -86,10 +87,12 @@ defmodule OpAMPServer.Agents do
 
   """
   def update_agent(%Agent{} = agent, attrs) do
-    resp = agent
-    |> Agent.changeset(attrs)
-    |> Repo.update()
-    |> broadcast(:agent_updated)
+    resp =
+      agent
+      |> Agent.changeset(attrs)
+      |> Repo.update()
+      |> broadcast(:agent_updated)
+
     resp
   end
 
@@ -125,8 +128,8 @@ defmodule OpAMPServer.Agents do
 
   def generate_desired_remote_config(conf) do
     %Opamp.Proto.AgentRemoteConfig{
-        config_hash: :crypto.hash(:md5, Opamp.Proto.AgentConfigMap.encode(conf)),
-        config: conf
-      }
+      config_hash: :crypto.hash(:md5, Opamp.Proto.AgentConfigMap.encode(conf)),
+      config: conf
+    }
   end
 end

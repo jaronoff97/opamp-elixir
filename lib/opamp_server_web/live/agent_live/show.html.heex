@@ -1,15 +1,11 @@
 <.header>
   Agent <%= @agent.id %>
   <:subtitle>
-    Last Heartbeat: <%= render_time(@agent.component_health.status_time_unix_nano) %> UTC
-    <br/>
+    Last Heartbeat: <%= render_time(@agent.component_health.status_time_unix_nano) %> UTC <br />
     Healthy? <%= @agent.component_health.healthy %>
-    <br/>
-    Service Name: <%= find_description_field(@agent.description, "service.name") %>
-    <br/>
-    Host Name: <%= find_description_field(@agent.description, "host.name") %>
-    <br/>
-    OS Family: <%= find_description_field(@agent.description, "os.family") %>
+    <br /> Service Name: <%= find_description_field(@agent.description, "service.name") %>
+    <br /> Host Name: <%= find_description_field(@agent.description, "host.name") %>
+    <br /> OS Family: <%= find_description_field(@agent.description, "os.family") %>
   </:subtitle>
 </.header>
 
@@ -20,24 +16,69 @@
 >
   <:col :let={collector} label="Modifiable?"><%= managed?(@agent, collector) %></:col>
   <:col :let={collector} label="Collector Name"><%= collector %></:col>
-  <:col :let={collector} label="Replicas"><%= get_effective_config_field(@agent.component_health.component_health_map[collector], :status) %></:col>
-  <:col :let={collector} label="Start Time"><%= render_time(@agent.component_health.component_health_map[collector].start_time_unix_nano) %> UTC</:col> 
-  <:col :let={collector} label="Last Heartbeat"><%= render_time(@agent.component_health.component_health_map[collector].status_time_unix_nano) %> UTC</:col>
+  <:col :let={collector} label="Replicas">
+    <%= get_effective_config_field(
+      @agent.component_health.component_health_map[collector],
+      :status
+    ) %>
+  </:col>
+  <:col :let={collector} label="Start Time">
+    <%= render_time(@agent.component_health.component_health_map[collector].start_time_unix_nano) %> UTC
+  </:col>
+  <:col :let={collector} label="Last Heartbeat">
+    <%= render_time(@agent.component_health.component_health_map[collector].status_time_unix_nano) %> UTC
+  </:col>
 </.table>
+
+<%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
+  <.table
+    id="pods"
+    rows={@pod_map_keys}
+    row_click={fn pod -> JS.push("select", value: %{pod: pod}) end}
+  >
+    <:col :let={pod} label="Pod Name"><%= pod %></:col>
+    <:col :let={pod} label="Status">
+      <%= get_effective_config_field(
+        @agent.component_health.component_health_map[@collector].component_health_map[pod],
+        :status
+      ) %>
+    </:col>
+    <:col :let={pod} label="Start Time">
+      <%= render_time(
+        @agent.component_health.component_health_map[@collector].component_health_map[pod].start_time_unix_nano
+      ) %> UTC
+    </:col>
+    <:col :let={pod} label="Last Heartbeat">
+      <%= render_time(
+        @agent.component_health.component_health_map[@collector].component_health_map[pod].status_time_unix_nano
+      ) %> UTC
+    </:col>
+  </.table>
+  <div class="h-12"></div>
+<% end %>
 
 <div id="editor"></div>
 <%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
   <.form :let={f} for={@changeset} phx-change="validate" phx-submit="save">
     <%= label f, "Effective Configuration" do %>
-      <%= textarea f, :effective_config, phx_hook: "EditorForm", value: @agent.effective_config.config_map.config_map[@collector].body, style: "display: none;" %>
+      <%= textarea(f, :effective_config,
+        phx_hook: "EditorForm",
+        value: @agent.effective_config.config_map.config_map[@collector].body,
+        style: "display: none;"
+      ) %>
     <% end %>
-    <%= submit "Submit" %>
+    <%= submit("Submit") %>
   </.form>
 <% end %>
 
 <.back navigate={~p"/agent"}>Back to agent</.back>
 
-<.modal :if={@live_action == :edit} id="agent-modal" show on_cancel={JS.patch(~p"/agent/#{@agent}")}>
+<.modal
+  :if={@live_action == :edit}
+  id="agent-modal"
+  show
+  on_cancel={JS.patch(~p"/agent/#{@agent}")}
+>
   <.live_component
     module={OpAMPServerWeb.AgentLive.FormComponent}
     id={@agent.id}
