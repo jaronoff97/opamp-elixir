@@ -23,10 +23,20 @@
     ) %>
   </:col>
   <:col :let={collector} label="Start Time">
-    <%= render_time(@agent.component_health.component_health_map[collector].start_time_unix_nano) %> UTC
+    <%= render_time(
+      get_effective_config_field(
+        @agent.component_health.component_health_map[collector],
+        :start_time_unix_nano
+      )
+    ) %> UTC
   </:col>
   <:col :let={collector} label="Last Heartbeat">
-    <%= render_time(@agent.component_health.component_health_map[collector].status_time_unix_nano) %> UTC
+    <%= render_time(
+      get_effective_config_field(
+        @agent.component_health.component_health_map[collector],
+        :status_time_unix_nano
+      )
+    ) %> UTC
   </:col>
 </.table>
 
