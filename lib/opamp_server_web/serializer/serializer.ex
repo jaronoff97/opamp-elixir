@@ -2,6 +2,7 @@ defmodule OpAMPServerWeb.Serializer do
   @behaviour Phoenix.Socket.Serializer
   use Agent
 
+  alias Ecto.UUID
   alias Phoenix.Socket.Reply
   alias Phoenix.Socket.Message
   alias Phoenix.Socket.Broadcast
@@ -21,18 +22,13 @@ defmodule OpAMPServerWeb.Serializer do
   end
 
   def encode!(%Reply{} = reply) do
-    # IO.puts "--------------- reply"
-    # IO.inspect reply
-    # IO.inspect Agent.get(:connections, &MapSet.to_list(&1))
-    # IO.puts "--------------- reply"
-    {:socket_push, :binary, encode_data(reply.payload)}
+    case reply.status do
+      :error -> {:socket_push, :binary, encode_data(get_error_message(reply.payload))}
+      _ -> {:socket_push, :binary, encode_data(reply.payload)}
+    end
   end
-  
+
   def encode!(%Message{} = msg) do
-    # IO.puts "--------------- msg"
-    # IO.inspect msg
-    # IO.inspect Agent.get(:connections, &MapSet.to_list(&1))
-    # IO.puts "--------------- msg"
     {:socket_push, :binary, encode_data(msg.payload)}
   end
 
@@ -48,13 +44,30 @@ defmodule OpAMPServerWeb.Serializer do
     Opamp.Proto.ServerToAgent.encode(payload)
   end
 
+  defp get_error_message(%{reason: "unmatched topic"}) do
+    %Opamp.Proto.ServerToAgent{
+      error_response: %Opamp.Proto.ServerErrorResponse{
+        type: :ServerErrorResponseType_Unavailable,
+        error_message: "Connection idled, reconnect requested"
+      }
+    }
+  end
+
+  defp get_error_message(%{reason: reason}) do
+    %Opamp.Proto.ServerToAgent{
+      error_response: %Opamp.Proto.ServerErrorResponse{
+        type: :ServerErrorResponseType_Unavailable,
+        error_message: reason
+      }
+    }
+  end
+
   def decode!(raw_message, opts) do
     case Keyword.fetch(opts, :opcode) do
       {:ok, :text} -> decode_text(raw_message)
       {:ok, :binary} -> decode_binary(raw_message)
     end
   end
-
 
   defp decode_text(raw_message) do
     [join_ref, ref, topic, event, payload | _] = Phoenix.json_library().decode!(raw_message)
@@ -73,22 +86,20 @@ defmodule OpAMPServerWeb.Serializer do
          data::binary
        >>) do
     proto = Opamp.Proto.AgentToServer.decode(data)
-    # IO.puts "-----------------------"
-    # IO.puts "is a memember?"
-    # IO.inspect Agent.get(:connections, &MapSet.member?(&1, proto.instance_uid))
-    # IO.inspect Agent.get(:connections, &MapSet.to_list/1)
-    # IO.puts "-----------------------"
-    case Agent.get(:connections, &MapSet.member?(&1, proto.instance_uid)) do
-      false -> respond_join(proto)
-      true -> respond_heartbeat(proto)
+    instance_uuid = UUID.load!(proto.instance_uid)
+
+    case Agent.get(:connections, &MapSet.member?(&1, instance_uuid)) do
+      false -> respond_join(proto, instance_uuid)
+      true -> respond_heartbeat(proto, instance_uuid)
     end
   end
 
-  defp respond_join(proto)do
-    Agent.update(:connections, &MapSet.put(&1, proto.instance_uid))
-    IO.puts "JOINING"
+  defp respond_join(proto, instance_uuid) do
+    Agent.update(:connections, &MapSet.put(&1, instance_uuid))
+    IO.puts("JOINING")
+
     %Message{
-      topic: "agents:" <> proto.instance_uid,
+      topic: "agents:" <> instance_uuid,
       event: "phx_join",
       payload: proto,
       ref: proto.sequence_num,
@@ -96,9 +107,9 @@ defmodule OpAMPServerWeb.Serializer do
     }
   end
 
-  defp respond_heartbeat(proto) when proto.sequence_num > 0 do
+  defp respond_heartbeat(proto, instance_uuid) when proto.sequence_num > 0 do
     %Message{
-      topic: "agents:" <> proto.instance_uid,
+      topic: "agents:" <> instance_uuid,
       event: "heartbeat",
       payload: proto,
       ref: proto.sequence_num,

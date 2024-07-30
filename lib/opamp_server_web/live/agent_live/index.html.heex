@@ -7,12 +7,18 @@
   rows={@streams.agent_collection}
   row_click={fn {_id, agent} -> JS.navigate(~p"/agent/#{agent}") end}
 >
-  <:col :let={{_id, agent}} label="Host Name"><%= find_description_field(agent.description, "host.name") %></:col>
+  <:col :let={{_id, agent}} label="Host Name">
+    <%= find_description_field(agent.description, "host.name") %>
+  </:col>
   <:col :let={{_id, agent}} label="Instance"><%= agent.id %></:col>
   <:col :let={{_id, agent}} label="Last Hearbeat">
-    <%= render_time(agent.component_health.status_time_unix_nano) %>
+    <%= if Map.has_key?(agent, :component_health) && agent.component_health != nil do %>
+      <%= render_time(agent.component_health.status_time_unix_nano) %>
+    <% end %>
   </:col>
-  <:col :let={{_id, agent}} label="Number of Collectors"><%= map_size(agent.effective_config.config_map.config_map) %></:col>
+  <:col :let={{_id, agent}} label="Number of Collectors">
+    <%= map_size(agent.effective_config.config_map.config_map) %>
+  </:col>
   <:action :let={{_id, agent}}>
     <div class="sr-only">
       <.link navigate={~p"/agent/#{agent}"}>Show</.link>

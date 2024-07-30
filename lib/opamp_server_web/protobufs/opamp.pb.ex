@@ -106,7 +106,7 @@ defmodule Opamp.Proto.AgentToServer do
 
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
-  field :instance_uid, 1, type: :string, json_name: "instanceUid"
+  field :instance_uid, 1, type: :bytes, json_name: "instanceUid"
   field :sequence_num, 2, type: :uint64, json_name: "sequenceNum"
   field :agent_description, 3, type: Opamp.Proto.AgentDescription, json_name: "agentDescription"
   field :capabilities, 4, type: :uint64
@@ -124,6 +124,12 @@ defmodule Opamp.Proto.AgentToServer do
   field :connection_settings_request, 11,
     type: Opamp.Proto.ConnectionSettingsRequest,
     json_name: "connectionSettingsRequest"
+
+  field :custom_capabilities, 12,
+    type: Opamp.Proto.CustomCapabilities,
+    json_name: "customCapabilities"
+
+  field :custom_message, 13, type: Opamp.Proto.CustomMessage, json_name: "customMessage"
 end
 
 defmodule Opamp.Proto.AgentDisconnect do
@@ -163,7 +169,7 @@ defmodule Opamp.Proto.ServerToAgent do
 
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
-  field :instance_uid, 1, type: :string, json_name: "instanceUid"
+  field :instance_uid, 1, type: :bytes, json_name: "instanceUid"
   field :error_response, 2, type: Opamp.Proto.ServerErrorResponse, json_name: "errorResponse"
   field :remote_config, 3, type: Opamp.Proto.AgentRemoteConfig, json_name: "remoteConfig"
 
@@ -183,6 +189,12 @@ defmodule Opamp.Proto.ServerToAgent do
     json_name: "agentIdentification"
 
   field :command, 9, type: Opamp.Proto.ServerToAgentCommand
+
+  field :custom_capabilities, 10,
+    type: Opamp.Proto.CustomCapabilities,
+    json_name: "customCapabilities"
+
+  field :custom_message, 11, type: Opamp.Proto.CustomMessage, json_name: "customMessage"
 end
 
 defmodule Opamp.Proto.OpAMPConnectionSettings do
@@ -328,7 +340,7 @@ defmodule Opamp.Proto.ServerErrorResponse do
 
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
-  oneof :Details, 0
+  oneof(:Details, 0)
 
   field :type, 1, type: Opamp.Proto.ServerErrorResponseType, enum: true
   field :error_message, 2, type: :string, json_name: "errorMessage"
@@ -366,7 +378,6 @@ defmodule Opamp.Proto.AgentDescription do
     type: Opamp.Proto.KeyValue,
     json_name: "nonIdentifyingAttributes"
 
-    
   use Ecto.Type
   @impl true
   def type, do: :binary
@@ -423,8 +434,6 @@ defmodule Opamp.Proto.ComponentHealth do
     json_name: "componentHealthMap",
     map: true
 
-
-
   use Ecto.Type
   @impl true
   def type, do: :binary
@@ -443,7 +452,13 @@ defmodule Opamp.Proto.ComponentHealth do
   """
   @impl true
   def load(term) when is_binary(term) do
-    {:ok, Opamp.Proto.ComponentHealth.decode(term)}
+    case term do
+      "" ->
+        {:ok, nil}
+
+      _ ->
+        {:ok, Opamp.Proto.ComponentHealth.decode(term)}
+    end
   end
 
   @doc """
@@ -488,7 +503,8 @@ defmodule Opamp.Proto.EffectiveConfig do
   """
   @impl true
   def dump(term) do
-    {:ok, Opamp.Proto.EffectiveConfig.encode(term)}
+    encoded_term = Opamp.Proto.EffectiveConfig.encode(term)
+    {:ok, encoded_term}
   end
 end
 
@@ -573,7 +589,7 @@ defmodule Opamp.Proto.AgentIdentification do
 
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
-  field :new_instance_uid, 1, type: :string, json_name: "newInstanceUid"
+  field :new_instance_uid, 1, type: :bytes, json_name: "newInstanceUid"
 end
 
 defmodule Opamp.Proto.AgentRemoteConfig do
@@ -583,7 +599,7 @@ defmodule Opamp.Proto.AgentRemoteConfig do
 
   field :config, 1, type: Opamp.Proto.AgentConfigMap
   field :config_hash, 2, type: :bytes, json_name: "configHash"
-  
+
   use Ecto.Type
   @impl true
   def type, do: :binary
@@ -642,4 +658,22 @@ defmodule Opamp.Proto.AgentConfigFile do
 
   field :body, 1, type: :bytes
   field :content_type, 2, type: :string, json_name: "contentType"
+end
+
+defmodule Opamp.Proto.CustomCapabilities do
+  @moduledoc false
+
+  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :capabilities, 1, repeated: true, type: :string
+end
+
+defmodule Opamp.Proto.CustomMessage do
+  @moduledoc false
+
+  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :capability, 1, type: :string
+  field :type, 2, type: :string
+  field :data, 3, type: :bytes
 end
