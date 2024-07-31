@@ -294,6 +294,35 @@ defmodule Opamp.Proto.ConnectionSettingsOffers do
     type: Opamp.Proto.ConnectionSettingsOffers.OtherConnectionsEntry,
     json_name: "otherConnections",
     map: true
+
+  use Ecto.Type
+  @impl true
+  def type, do: :binary
+
+  @doc """
+  Provides custom casting rules for params. Nothing changes here.
+  We only need to handle deserialization.
+  """
+  def cast(:any, term), do: {:ok, term}
+  @impl true
+  def cast(term), do: {:ok, term}
+
+  @doc """
+  Convert the map from the database back to
+  the desired term.
+  """
+  @impl true
+  def load(term) when is_binary(term) do
+    {:ok, Opamp.Proto.ConnectionSettingsOffers.decode(term)}
+  end
+
+  @doc """
+  Converting the data structure to map for storage.
+  """
+  @impl true
+  def dump(term) do
+    {:ok, Opamp.Proto.ConnectionSettingsOffers.encode(term)}
+  end
 end
 
 defmodule Opamp.Proto.PackagesAvailable.PackagesEntry do

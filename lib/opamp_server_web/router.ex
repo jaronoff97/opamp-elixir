@@ -21,6 +21,7 @@ defmodule OpAMPServerWeb.Router do
     live "/agent", AgentLive.Index, :index
     live "/agent/new", AgentLive.Index, :new
     live "/agent/:id/edit", AgentLive.Index, :edit
+    live "/agent/:id/edit_connection", AgentLive.Index, :edit_connection
 
     live "/agent/:id", AgentLive.ShowBridge, :show
     live "/agent/:id/show/edit", AgentLive.ShowBridge, :edit

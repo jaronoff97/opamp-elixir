@@ -27,7 +27,7 @@
   :if={@live_action == :edit}
   id="agent-modal"
   show
-  on_cancel={JS.patch(~p"/agent/#{@agent}")}
+  on_cancel={JS.patch(~p"/agent/collector/#{@agent}")}
 >
   <.live_component
     module={OpAMPServerWeb.AgentLive.FormComponent}
@@ -35,6 +35,6 @@
     title={@page_title}
     action={@live_action}
     agent={@agent}
-    patch={~p"/agent/#{@agent}"}
+    patch={~p"/agent/collector/#{@agent}"}
   />
 </.modal>

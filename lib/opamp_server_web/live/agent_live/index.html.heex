@@ -26,7 +26,8 @@
     <div class="sr-only">
       <.link navigate={show_url(agent)}>Show</.link>
     </div>
-    <.link patch={~p"/agent/#{agent}/edit"}>Edit</.link>
+    <%!-- <.link patch={~p"/agent/#{agent}/edit"}>Edit</.link> --%>
+    <.link patch={~p"/agent/#{agent}/edit_connection"}>Telemetry Settings</.link>
   </:action>
   <:action :let={{id, agent}}>
     <.link
@@ -41,6 +42,22 @@
 <.modal :if={@live_action in [:new, :edit]} id="agent-modal" show on_cancel={JS.patch(~p"/agent")}>
   <.live_component
     module={OpAMPServerWeb.AgentLive.FormComponent}
+    id={@agent.id || :new}
+    title={@page_title}
+    action={@live_action}
+    agent={@agent}
+    patch={~p"/agent"}
+  />
+</.modal>
+
+<.modal
+  :if={@live_action in [:edit_connection]}
+  id="telemetry-settings-modal"
+  show
+  on_cancel={JS.patch(~p"/agent")}
+>
+  <.live_component
+    module={OpAMPServerWeb.AgentLive.ConnectionSettingsComponent}
     id={@agent.id || :new}
     title={@page_title}
     action={@live_action}

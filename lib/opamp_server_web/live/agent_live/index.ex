@@ -12,12 +12,19 @@ defmodule OpAMPServerWeb.AgentLive.Index do
 
   @impl true
   def handle_params(params, _url, socket) do
+    IO.inspect(socket.assigns.live_action)
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
   def time_since(updated_datetime) do
     DateTime.utc_now()
     |> DateTime.diff(DateTime.from_unix!(updated_datetime, :nanosecond))
+  end
+
+  defp apply_action(socket, :edit_connection, %{"id" => id}) do
+    socket
+    |> assign(:page_title, "Edit Agent")
+    |> assign(:agent, Agents.get_agent!(id))
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
@@ -40,6 +47,11 @@ defmodule OpAMPServerWeb.AgentLive.Index do
 
   @impl true
   def handle_info({OpAMPServerWeb.AgentLive.FormComponent, {:saved, agent}}, socket) do
+    {:noreply, stream_insert(socket, :agent_collection, agent)}
+  end
+
+  @impl true
+  def handle_info({OpAMPServerWeb.AgentLive.ConnectionSettingsComponent, {:saved, agent}}, socket) do
     {:noreply, stream_insert(socket, :agent_collection, agent)}
   end
 
