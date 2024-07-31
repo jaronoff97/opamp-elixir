@@ -21,9 +21,12 @@ defmodule OpAMPServerWeb.Router do
     live "/agent", AgentLive.Index, :index
     live "/agent/new", AgentLive.Index, :new
     live "/agent/:id/edit", AgentLive.Index, :edit
+    live "/agent/:id/edit_connection", AgentLive.Index, :edit_connection
 
-    live "/agent/:id", AgentLive.Show, :show
-    live "/agent/:id/show/edit", AgentLive.Show, :edit
+    live "/agent/:id", AgentLive.ShowBridge, :show
+    live "/agent/:id/show/edit", AgentLive.ShowBridge, :edit
+    live "/agent/collector/:id", AgentLive.ShowCollector, :show
+    live "/agent/collector/:id/show/edit", AgentLive.ShowCollector, :edit
   end
 
   # Other scopes may use custom stacks.

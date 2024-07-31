@@ -1,0 +1,40 @@
+<.header>
+  Agent <%= @agent.id %>
+  <:subtitle>
+    <br /> Last Heartbeat: <%= @agent.updated_at %> UTC <br />
+    Service Name: <%= find_description_field(@agent.description, "service.name") %>
+    <br /> Host Name: <%= find_description_field(@agent.description, "host.name") %>
+  </:subtitle>
+</.header>
+
+<div id="editor"></div>
+<%= if Map.has_key?(@agent.effective_config.config_map.config_map, "") do %>
+  <.form :let={f} for={@changeset} phx-change="validate" phx-submit="save">
+    <%= label f, "Effective Configuration" do %>
+      <%= textarea(f, :effective_config,
+        phx_hook: "EditorForm",
+        value: @agent.effective_config.config_map.config_map[""].body,
+        style: "display: none;"
+      ) %>
+    <% end %>
+    <%= submit("Submit") %>
+  </.form>
+<% end %>
+
+<.back navigate={~p"/agent"}>Back to agent</.back>
+
+<.modal
+  :if={@live_action == :edit}
+  id="agent-modal"
+  show
+  on_cancel={JS.patch(~p"/agent/collector/#{@agent}")}
+>
+  <.live_component
+    module={OpAMPServerWeb.AgentLive.FormComponent}
+    id={@agent.id}
+    title={@page_title}
+    action={@live_action}
+    agent={@agent}
+    patch={~p"/agent/collector/#{@agent}"}
+  />
+</.modal>

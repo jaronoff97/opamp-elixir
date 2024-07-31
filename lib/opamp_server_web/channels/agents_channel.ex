@@ -29,14 +29,16 @@ defmodule OpAMPServerWeb.AgentsChannel do
   @impl true
   def handle_info({:agent_updated, payload}, socket) do
     # BridgeAgent.put(:opampagent, socket.assigns.agent_id, payload.effective_config)
-    # IO.puts "I AM SENDING AN UPDATE MESSAGE OMG"
-    # IO.puts "------------ handle update"
-    # IO.inspect payload
-    # IO.puts "------------ handle update"
+    # IO.puts("I AM SENDING AN UPDATE MESSAGE OMG")
+    # IO.puts("------------ handle update")
+    # IO.inspect(payload)
+    # IO.puts("------------ handle update")
+
     server_to_agent = %Opamp.Proto.ServerToAgent{
       instance_uid: socket.assigns.agent_id,
       capabilities: server_capabilities(),
-      remote_config: payload.desired_remote_config
+      remote_config: payload.desired_remote_config,
+      connection_settings: payload.connection_settings
     }
 
     # IO.puts "------------ configmap pre-send"

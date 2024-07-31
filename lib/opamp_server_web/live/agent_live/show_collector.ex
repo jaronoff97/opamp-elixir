@@ -1,4 +1,4 @@
-defmodule OpAMPServerWeb.AgentLive.Show do
+defmodule OpAMPServerWeb.AgentLive.ShowCollector do
   use OpAMPServerWeb, :live_view
   import Phoenix.HTML.Form
 
