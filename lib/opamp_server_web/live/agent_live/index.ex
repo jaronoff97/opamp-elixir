@@ -51,7 +51,10 @@ defmodule OpAMPServerWeb.AgentLive.Index do
 
   @impl true
   def handle_info({:agent_updated, agent}, socket) do
-    {:noreply, socket |> stream_delete(:agent_collection, agent) |> stream_insert(:agent_collection, agent, reset: true)}
+    {:noreply,
+     socket
+     |> stream_delete(:agent_collection, agent)
+     |> stream_insert(:agent_collection, agent, reset: true)}
   end
 
   @impl true
@@ -78,14 +81,37 @@ defmodule OpAMPServerWeb.AgentLive.Index do
     |> get_value
   end
 
- defp get_value(nil), do: ""
- defp get_value(kv) do
-  case kv.value.value do
-    {:string_value, v} -> v
-    {other, _v} ->
-      IO.puts "unable to retrieve value for type #{other}"
-      ""
-  end
- end
+  defp get_value(nil), do: ""
 
+  defp get_value(kv) do
+    case kv.value.value do
+      {:string_value, v} ->
+        v
+
+      {other, _v} ->
+        IO.puts("unable to retrieve value for type #{other}")
+        ""
+    end
+  end
+
+  def agent_type(%{
+        effective_config: %{
+          config_map: %{
+            config_map: %{
+              "" => _file
+            }
+          }
+        }
+      }),
+      do: :collector
+
+  def agent_type(_config),
+    do: :bridge
+
+  def show_url(agent) do
+    case agent_type(agent) do
+      :collector -> ~p"/agent/collector/#{agent}"
+      :bridge -> ~p"/agent/#{agent}"
+    end
+  end
 end

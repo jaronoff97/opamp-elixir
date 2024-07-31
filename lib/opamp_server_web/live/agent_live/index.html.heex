@@ -5,8 +5,11 @@
 <.table
   id="agent"
   rows={@streams.agent_collection}
-  row_click={fn {_id, agent} -> JS.navigate(~p"/agent/#{agent}") end}
+  row_click={fn {_id, agent} -> JS.navigate(show_url(agent)) end}
 >
+  <:col :let={{_id, agent}} label="Agent Type">
+    <%= agent_type(agent) %>
+  </:col>
   <:col :let={{_id, agent}} label="Host Name">
     <%= find_description_field(agent.description, "host.name") %>
   </:col>
@@ -21,7 +24,7 @@
   </:col>
   <:action :let={{_id, agent}}>
     <div class="sr-only">
-      <.link navigate={~p"/agent/#{agent}"}>Show</.link>
+      <.link navigate={show_url(agent)}>Show</.link>
     </div>
     <.link patch={~p"/agent/#{agent}/edit"}>Edit</.link>
   </:action>
