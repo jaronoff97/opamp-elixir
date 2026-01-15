@@ -50,7 +50,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     {:noreply,
      socket
      |> set_flash(agent)
-     |> assign_initial_changeset(agent)}
+     |> update_agent_data(agent)}
   end
 
   @impl true
@@ -135,6 +135,23 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     else
       socket
     end
+  end
+
+  defp update_agent_data(socket, agent) do
+    # Update agent data without resetting collector selection
+    changeset = Agents.Agent.changeset(agent, %{})
+
+    config_hash =
+      if agent.remote_config_status,
+        do: agent.remote_config_status.last_remote_config_hash,
+        else: nil
+
+    socket
+    |> assign(changeset: changeset)
+    |> assign(:agent, agent)
+    |> assign(map_keys: get_config_map_keys(agent))
+    |> assign(config_hash: config_hash)
+    |> assign(form: Phoenix.Component.to_form(changeset))
   end
 
   defp assign_initial_changeset(socket, agent) do

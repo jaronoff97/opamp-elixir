@@ -18,8 +18,8 @@
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"
 // Establish Phoenix Socket and LiveView configuration.
-import {Socket} from "phoenix"
-import {LiveSocket} from "phoenix_live_view"
+import { Socket } from "phoenix"
+import { LiveSocket } from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import { EditorView, basicSetup } from "codemirror"
 import { EditorState, Compartment } from "@codemirror/state"
@@ -36,29 +36,13 @@ let state = EditorState.create({
 
 hooks = {
   EditorForm: {
-  	updated() {
-	  this.view = new EditorView({
-	  	doc: "test",
-	  	height: 100,
-	    state: state,
-	    parent: document.getElementById("editor")
-	  })
-      let textarea = this.el
-
-      // Initialise the editor with the content from the form's textarea
-      let content = textarea.value
-      let new_state = this.view.state.update({
-        changes: { from: 0, to: this.view.state.doc.length, insert: content }
-      })
-      this.view.dispatch(new_state)
-  	},
     mounted() {
-	  this.view = new EditorView({
-	  	doc: "test",
-	  	height: 100,
-	    state: state,
-	    parent: document.getElementById("editor")
-	  })
+      this.view = new EditorView({
+        doc: "test",
+        height: 100,
+        state: state,
+        parent: document.getElementById("editor")
+      })
       let textarea = this.el
 
       // Initialise the editor with the content from the form's textarea
@@ -73,20 +57,26 @@ hooks = {
         textarea.value = this.view.state.doc.toString()
       })
       this.handleEvent("reset", (_data) => {
-		let new_state = this.view.state.update({
-		  changes: { from: 0, to: 0, insert: "" }
-		})
-		this.view.dispatch(new_state)
+        let new_state = this.view.state.update({
+          changes: { from: 0, to: 0, insert: "" }
+        })
+        this.view.dispatch(new_state)
       })
+    },
+    destroyed() {
+      if (this.view) {
+        this.view.destroy()
+        this.view = null
+      }
     }
   }
 }
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-let liveSocket = new LiveSocket("/live", Socket, {params: {_csrf_token: csrfToken}, hooks: hooks})
+let liveSocket = new LiveSocket("/live", Socket, { params: { _csrf_token: csrfToken }, hooks: hooks })
 
 // Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
+topbar.config({ barColors: { 0: "#29d" }, shadowColor: "rgba(0, 0, 0, .3)" })
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
@@ -98,4 +88,3 @@ liveSocket.connect()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
-
