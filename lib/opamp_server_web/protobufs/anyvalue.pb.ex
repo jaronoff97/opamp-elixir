@@ -3,7 +3,7 @@ defmodule Opamp.Proto.AnyValue do
 
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
-  oneof :value, 0
+  oneof(:value, 0)
 
   field :string_value, 1, type: :string, json_name: "stringValue", oneof: 0
   field :bool_value, 2, type: :bool, json_name: "boolValue", oneof: 0

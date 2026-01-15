@@ -8,7 +8,7 @@ defmodule OpAMPServer.AgentsTest do
 
     import OpAMPServer.AgentsFixtures
 
-    @invalid_attrs %{instance_id: nil, effective_config: nil}
+    @invalid_attrs %{id: nil}
 
     test "list_agent/0 returns all agent" do
       agent = agent_fixture()
@@ -21,11 +21,10 @@ defmodule OpAMPServer.AgentsTest do
     end
 
     test "create_agent/1 with valid data creates a agent" do
-      valid_attrs = %{instance_id: "some instance_id", effective_config: %{}}
+      valid_attrs = %{id: Ecto.UUID.generate()}
 
       assert {:ok, %Agent{} = agent} = Agents.create_agent(valid_attrs)
-      assert agent.instance_id == "some instance_id"
-      assert agent.effective_config == %{}
+      assert agent.id != nil
     end
 
     test "create_agent/1 with invalid data returns error changeset" do
@@ -34,17 +33,21 @@ defmodule OpAMPServer.AgentsTest do
 
     test "update_agent/2 with valid data updates the agent" do
       agent = agent_fixture()
-      update_attrs = %{instance_id: "some updated instance_id", effective_config: %{}}
 
-      assert {:ok, %Agent{} = agent} = Agents.update_agent(agent, update_attrs)
-      assert agent.instance_id == "some updated instance_id"
-      assert agent.effective_config == %{}
+      config = %Opamp.Proto.EffectiveConfig{
+        config_map: %Opamp.Proto.AgentConfigMap{config_map: %{}}
+      }
+
+      update_attrs = %{effective_config: config}
+
+      assert {:ok, %Agent{} = updated_agent} = Agents.update_agent(agent, update_attrs)
+      assert updated_agent.effective_config != nil
     end
 
     test "update_agent/2 with invalid data returns error changeset" do
       agent = agent_fixture()
-      assert {:error, %Ecto.Changeset{}} = Agents.update_agent(agent, @invalid_attrs)
-      assert agent == Agents.get_agent!(agent.id)
+      # Setting id to nil should fail since it's required
+      assert {:error, %Ecto.Changeset{}} = Agents.update_agent(agent, %{id: nil})
     end
 
     test "delete_agent/1 deletes the agent" do

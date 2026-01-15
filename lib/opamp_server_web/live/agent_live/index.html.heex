@@ -5,7 +5,7 @@
 <.table
   id="agent"
   rows={@streams.agent_collection}
-  row_click={fn {_id, agent} -> JS.navigate(~p"/agent/#{agent}") end}
+  row_click={fn {_id, agent} -> JS.navigate(~p"/#{agent}") end}
 >
   <:col :let={{_id, agent}} label="Host Name">
     <%= find_description_field(agent.description, "host.name") %>
@@ -21,9 +21,9 @@
   </:col>
   <:action :let={{_id, agent}}>
     <div class="sr-only">
-      <.link navigate={~p"/agent/#{agent}"}>Show</.link>
+      <.link navigate={~p"/#{agent}"}>Show</.link>
     </div>
-    <.link patch={~p"/agent/#{agent}/edit"}>Edit</.link>
+    <.link patch={~p"/#{agent}/edit"}>Edit</.link>
   </:action>
   <:action :let={{id, agent}}>
     <.link
@@ -35,13 +35,13 @@
   </:action>
 </.table>
 
-<.modal :if={@live_action in [:new, :edit]} id="agent-modal" show on_cancel={JS.patch(~p"/agent")}>
+<.modal :if={@live_action in [:new, :edit]} id="agent-modal" show on_cancel={JS.patch(~p"/")}>
   <.live_component
     module={OpAMPServerWeb.AgentLive.FormComponent}
     id={@agent.id || :new}
     title={@page_title}
     action={@live_action}
     agent={@agent}
-    patch={~p"/agent"}
+    patch={~p"/"}
   />
 </.modal>

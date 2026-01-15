@@ -8,7 +8,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   def mount(%{"id" => id}, _session, socket) do
     case Agents.get_agent(id) do
       nil ->
-        {:ok, redirect(socket, to: ~p"/agent")}
+        {:ok, redirect(socket, to: ~p"/")}
 
       agent ->
         if connected?(socket), do: OpAMPServer.Agents.subscribe_to_agent(id)
@@ -24,13 +24,21 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   @impl true
   def handle_params(%{"id" => id}, _, socket) do
     agent = Agents.get_agent!(id)
+    map_keys = get_config_map_keys(agent)
 
     {:noreply,
      socket
      |> assign(:page_title, "Showing Agent")
      |> assign(:agent, agent)
-     |> assign(map_keys: Map.keys(agent.effective_config.config_map.config_map))}
+     |> assign(map_keys: map_keys)}
   end
+
+  defp get_config_map_keys(%{effective_config: nil}), do: []
+  defp get_config_map_keys(%{effective_config: %{config_map: nil}}), do: []
+  defp get_config_map_keys(%{effective_config: %{config_map: %{config_map: nil}}}), do: []
+
+  defp get_config_map_keys(%{effective_config: %{config_map: %{config_map: config_map}}}),
+    do: Map.keys(config_map)
 
   @impl true
   def handle_info({:agent_created, _agent}, socket) do
@@ -42,12 +50,12 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     {:noreply,
      socket
      |> set_flash(agent)
-     |> assign_initial_changeset(agent)}
+     |> update_agent_data(agent)}
   end
 
   @impl true
   def handle_info({:agent_deleted, _agent}, socket) do
-    {:noreply, redirect(socket, to: ~p"/agent")}
+    {:noreply, redirect(socket, to: ~p"/")}
   end
 
   @impl true
@@ -106,36 +114,61 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     end
   end
 
-  defp set_flash(socket, agent)
-       when agent.remote_config_status.last_remote_config_hash != socket.assigns.config_hash do
-    case agent.remote_config_status.status do
-      :RemoteConfigStatuses_UNSET ->
-        put_flash(socket, :info, agent.remote_config_status.error_message)
+  defp set_flash(socket, %{remote_config_status: nil}), do: socket
 
-      :RemoteConfigStatuses_APPLIED ->
-        socket
-        |> put_flash(:info, "Success applying!")
+  defp set_flash(socket, agent) do
+    if agent.remote_config_status.last_remote_config_hash != socket.assigns.config_hash do
+      case agent.remote_config_status.status do
+        :RemoteConfigStatuses_UNSET ->
+          put_flash(socket, :info, agent.remote_config_status.error_message)
 
-      :RemoteConfigStatuses_APPLYING ->
-        put_flash(socket, :info, "applying...")
+        :RemoteConfigStatuses_APPLIED ->
+          socket
+          |> put_flash(:info, "Success applying!")
 
-      :RemoteConfigStatuses_FAILED ->
-        put_flash(socket, :error, agent.remote_config_status.error_message)
+        :RemoteConfigStatuses_APPLYING ->
+          put_flash(socket, :info, "applying...")
+
+        :RemoteConfigStatuses_FAILED ->
+          put_flash(socket, :error, agent.remote_config_status.error_message)
+      end
+    else
+      socket
     end
   end
 
-  defp set_flash(socket, _remote_config_status), do: socket
+  defp update_agent_data(socket, agent) do
+    # Update agent data without resetting collector selection
+    changeset = Agents.Agent.changeset(agent, %{})
+
+    config_hash =
+      if agent.remote_config_status,
+        do: agent.remote_config_status.last_remote_config_hash,
+        else: nil
+
+    socket
+    |> assign(changeset: changeset)
+    |> assign(:agent, agent)
+    |> assign(map_keys: get_config_map_keys(agent))
+    |> assign(config_hash: config_hash)
+    |> assign(form: Phoenix.Component.to_form(changeset))
+  end
 
   defp assign_initial_changeset(socket, agent) do
     # Assign a changeset to the most recent snippet, if one exists, or a new snippet.
     changeset = Agents.Agent.changeset(agent, %{})
+
+    config_hash =
+      if agent.remote_config_status,
+        do: agent.remote_config_status.last_remote_config_hash,
+        else: nil
 
     socket
     |> assign(:collector, nil)
     |> push_event("reset", %{})
     |> assign(changeset: changeset)
     |> assign(:agent, agent)
-    |> assign(config_hash: agent.remote_config_status.last_remote_config_hash)
+    |> assign(config_hash: config_hash)
     |> assign(form: Phoenix.Component.to_form(changeset))
   end
 
@@ -179,8 +212,13 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     Map.get(config_map, field, "")
   end
 
+  def find_description_field(nil, _field), do: ""
+
   def find_description_field(description, field) do
-    Enum.concat(description.identifying_attributes, description.non_identifying_attributes)
+    identifying = description.identifying_attributes || []
+    non_identifying = description.non_identifying_attributes || []
+
+    Enum.concat(identifying, non_identifying)
     |> Enum.find(fn kv -> kv.key == field end)
     |> get_value
   end
