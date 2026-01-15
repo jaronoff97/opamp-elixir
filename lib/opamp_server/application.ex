@@ -14,11 +14,10 @@ defmodule OpAMPServer.Application do
       {Phoenix.PubSub, name: OpAMPServer.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: OpAMPServer.Finch},
-      # Start a worker by calling: OpAMPServer.Worker.start_link(arg)
-      # {OpAMPServer.Worker, arg},
+      # OpAMP connection manager (must start before Endpoint)
+      OpAMPServer.OpAMP.ConnectionManager,
       # Start to serve requests, typically the last entry
-      OpAMPServerWeb.Endpoint,
-      OpAMPServerWeb.Serializer
+      OpAMPServerWeb.Endpoint
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

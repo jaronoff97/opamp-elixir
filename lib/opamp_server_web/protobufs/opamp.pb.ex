@@ -14,6 +14,7 @@ defmodule Opamp.Proto.ServerToAgentFlags do
 
   field :ServerToAgentFlags_Unspecified, 0
   field :ServerToAgentFlags_ReportFullState, 1
+  field :ServerToAgentFlags_ReportAvailableComponents, 2
 end
 
 defmodule Opamp.Proto.ServerCapabilities do
@@ -77,6 +78,8 @@ defmodule Opamp.Proto.AgentCapabilities do
   field :AgentCapabilities_AcceptsRestartCommand, 1024
   field :AgentCapabilities_ReportsHealth, 2048
   field :AgentCapabilities_ReportsRemoteConfig, 4096
+  field :AgentCapabilities_ReportsHeartbeat, 8192
+  field :AgentCapabilities_ReportsAvailableComponents, 16384
 end
 
 defmodule Opamp.Proto.RemoteConfigStatuses do
@@ -99,6 +102,7 @@ defmodule Opamp.Proto.PackageStatusEnum do
   field :PackageStatusEnum_InstallPending, 1
   field :PackageStatusEnum_Installing, 2
   field :PackageStatusEnum_InstallFailed, 3
+  field :PackageStatusEnum_Downloading, 4
 end
 
 defmodule Opamp.Proto.AgentToServer do
@@ -130,6 +134,10 @@ defmodule Opamp.Proto.AgentToServer do
     json_name: "customCapabilities"
 
   field :custom_message, 13, type: Opamp.Proto.CustomMessage, json_name: "customMessage"
+
+  field :available_components, 14,
+    type: Opamp.Proto.AvailableComponents,
+    json_name: "availableComponents"
 end
 
 defmodule Opamp.Proto.AgentDisconnect do
@@ -162,6 +170,51 @@ defmodule Opamp.Proto.CertificateRequest do
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
   field :csr, 1, type: :bytes
+end
+
+defmodule Opamp.Proto.AvailableComponents.ComponentsEntry do
+  @moduledoc false
+
+  use Protobuf, map: true, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :key, 1, type: :string
+  field :value, 2, type: Opamp.Proto.ComponentDetails
+end
+
+defmodule Opamp.Proto.AvailableComponents do
+  @moduledoc false
+
+  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :components, 1,
+    repeated: true,
+    type: Opamp.Proto.AvailableComponents.ComponentsEntry,
+    map: true
+
+  field :hash, 2, type: :bytes
+end
+
+defmodule Opamp.Proto.ComponentDetails.SubComponentMapEntry do
+  @moduledoc false
+
+  use Protobuf, map: true, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :key, 1, type: :string
+  field :value, 2, type: Opamp.Proto.ComponentDetails
+end
+
+defmodule Opamp.Proto.ComponentDetails do
+  @moduledoc false
+
+  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :metadata, 1, repeated: true, type: Opamp.Proto.KeyValue
+
+  field :sub_component_map, 2,
+    repeated: true,
+    type: Opamp.Proto.ComponentDetails.SubComponentMapEntry,
+    json_name: "subComponentMap",
+    map: true
 end
 
 defmodule Opamp.Proto.ServerToAgent do
@@ -205,6 +258,8 @@ defmodule Opamp.Proto.OpAMPConnectionSettings do
   field :destination_endpoint, 1, type: :string, json_name: "destinationEndpoint"
   field :headers, 2, type: Opamp.Proto.Headers
   field :certificate, 3, type: Opamp.Proto.TLSCertificate
+  field :heartbeat_interval_seconds, 4, type: :uint64, json_name: "heartbeatIntervalSeconds"
+  field :tls, 5, type: Opamp.Proto.TLSConnectionSettings
 end
 
 defmodule Opamp.Proto.TelemetryConnectionSettings do
@@ -215,6 +270,7 @@ defmodule Opamp.Proto.TelemetryConnectionSettings do
   field :destination_endpoint, 1, type: :string, json_name: "destinationEndpoint"
   field :headers, 2, type: Opamp.Proto.Headers
   field :certificate, 3, type: Opamp.Proto.TLSCertificate
+  field :tls, 4, type: Opamp.Proto.TLSConnectionSettings
 end
 
 defmodule Opamp.Proto.OtherConnectionSettings.OtherSettingsEntry do
@@ -240,6 +296,21 @@ defmodule Opamp.Proto.OtherConnectionSettings do
     type: Opamp.Proto.OtherConnectionSettings.OtherSettingsEntry,
     json_name: "otherSettings",
     map: true
+
+  field :tls, 5, type: Opamp.Proto.TLSConnectionSettings
+end
+
+defmodule Opamp.Proto.TLSConnectionSettings do
+  @moduledoc false
+
+  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :ca_pem_contents, 1, type: :string, json_name: "caPemContents"
+  field :include_system_ca_certs_pool, 2, type: :bool, json_name: "includeSystemCaCertsPool"
+  field :insecure_skip_verify, 3, type: :bool, json_name: "insecureSkipVerify"
+  field :min_version, 4, type: :string, json_name: "minVersion"
+  field :max_version, 5, type: :string, json_name: "maxVersion"
+  field :cipher_suites, 6, repeated: true, type: :string, json_name: "cipherSuites"
 end
 
 defmodule Opamp.Proto.Headers do
@@ -264,9 +335,9 @@ defmodule Opamp.Proto.TLSCertificate do
 
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
-  field :public_key, 1, type: :bytes, json_name: "publicKey"
+  field :cert, 1, type: :bytes
   field :private_key, 2, type: :bytes, json_name: "privateKey"
-  field :ca_public_key, 3, type: :bytes, json_name: "caPublicKey"
+  field :ca_cert, 3, type: :bytes, json_name: "caCert"
 end
 
 defmodule Opamp.Proto.ConnectionSettingsOffers.OtherConnectionsEntry do
@@ -333,6 +404,7 @@ defmodule Opamp.Proto.DownloadableFile do
   field :download_url, 1, type: :string, json_name: "downloadUrl"
   field :content_hash, 2, type: :bytes, json_name: "contentHash"
   field :signature, 3, type: :bytes
+  field :headers, 4, type: Opamp.Proto.Headers
 end
 
 defmodule Opamp.Proto.ServerErrorResponse do
@@ -377,35 +449,6 @@ defmodule Opamp.Proto.AgentDescription do
     repeated: true,
     type: Opamp.Proto.KeyValue,
     json_name: "nonIdentifyingAttributes"
-
-  use Ecto.Type
-  @impl true
-  def type, do: :binary
-
-  @doc """
-  Provides custom casting rules for params. Nothing changes here.
-  We only need to handle deserialization.
-  """
-  def cast(:any, term), do: {:ok, term}
-  @impl true
-  def cast(term), do: {:ok, term}
-
-  @doc """
-  Convert the map from the database back to
-  the desired term.
-  """
-  @impl true
-  def load(term) when is_binary(term) do
-    {:ok, Opamp.Proto.AgentDescription.decode(term)}
-  end
-
-  @doc """
-  Converting the data structure to map for storage.
-  """
-  @impl true
-  def dump(term) do
-    {:ok, Opamp.Proto.AgentDescription.encode(term)}
-  end
 end
 
 defmodule Opamp.Proto.ComponentHealth.ComponentHealthMapEntry do
@@ -433,41 +476,6 @@ defmodule Opamp.Proto.ComponentHealth do
     type: Opamp.Proto.ComponentHealth.ComponentHealthMapEntry,
     json_name: "componentHealthMap",
     map: true
-
-  use Ecto.Type
-  @impl true
-  def type, do: :binary
-
-  @doc """
-  Provides custom casting rules for params. Nothing changes here.
-  We only need to handle deserialization.
-  """
-  def cast(:any, term), do: {:ok, term}
-  @impl true
-  def cast(term), do: {:ok, term}
-
-  @doc """
-  Convert the map from the database back to
-  the desired term.
-  """
-  @impl true
-  def load(term) when is_binary(term) do
-    case term do
-      "" ->
-        {:ok, nil}
-
-      _ ->
-        {:ok, Opamp.Proto.ComponentHealth.decode(term)}
-    end
-  end
-
-  @doc """
-  Converting the data structure to map for storage.
-  """
-  @impl true
-  def dump(term) do
-    {:ok, Opamp.Proto.ComponentHealth.encode(term)}
-  end
 end
 
 defmodule Opamp.Proto.EffectiveConfig do
@@ -476,36 +484,6 @@ defmodule Opamp.Proto.EffectiveConfig do
   use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
 
   field :config_map, 1, type: Opamp.Proto.AgentConfigMap, json_name: "configMap"
-
-  use Ecto.Type
-  @impl true
-  def type, do: :binary
-
-  @doc """
-  Provides custom casting rules for params. Nothing changes here.
-  We only need to handle deserialization.
-  """
-  def cast(:any, term), do: {:ok, term}
-  @impl true
-  def cast(term), do: {:ok, term}
-
-  @doc """
-  Convert the map from the database back to
-  the desired term.
-  """
-  @impl true
-  def load(term) when is_binary(term) do
-    {:ok, Opamp.Proto.EffectiveConfig.decode(term)}
-  end
-
-  @doc """
-  Converting the data structure to map for storage.
-  """
-  @impl true
-  def dump(term) do
-    encoded_term = Opamp.Proto.EffectiveConfig.encode(term)
-    {:ok, encoded_term}
-  end
 end
 
 defmodule Opamp.Proto.RemoteConfigStatus do
@@ -516,35 +494,6 @@ defmodule Opamp.Proto.RemoteConfigStatus do
   field :last_remote_config_hash, 1, type: :bytes, json_name: "lastRemoteConfigHash"
   field :status, 2, type: Opamp.Proto.RemoteConfigStatuses, enum: true
   field :error_message, 3, type: :string, json_name: "errorMessage"
-
-  use Ecto.Type
-  @impl true
-  def type, do: :binary
-
-  @doc """
-  Provides custom casting rules for params. Nothing changes here.
-  We only need to handle deserialization.
-  """
-  def cast(:any, term), do: {:ok, term}
-  @impl true
-  def cast(term), do: {:ok, term}
-
-  @doc """
-  Convert the map from the database back to
-  the desired term.
-  """
-  @impl true
-  def load(term) when is_binary(term) do
-    {:ok, Opamp.Proto.RemoteConfigStatus.decode(term)}
-  end
-
-  @doc """
-  Converting the data structure to map for storage.
-  """
-  @impl true
-  def dump(term) do
-    {:ok, Opamp.Proto.RemoteConfigStatus.encode(term)}
-  end
 end
 
 defmodule Opamp.Proto.PackageStatuses.PackagesEntry do
@@ -582,6 +531,19 @@ defmodule Opamp.Proto.PackageStatus do
   field :server_offered_hash, 5, type: :bytes, json_name: "serverOfferedHash"
   field :status, 6, type: Opamp.Proto.PackageStatusEnum, enum: true
   field :error_message, 7, type: :string, json_name: "errorMessage"
+
+  field :download_details, 8,
+    type: Opamp.Proto.PackageDownloadDetails,
+    json_name: "downloadDetails"
+end
+
+defmodule Opamp.Proto.PackageDownloadDetails do
+  @moduledoc false
+
+  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+
+  field :download_percent, 1, type: :double, json_name: "downloadPercent"
+  field :download_bytes_per_second, 2, type: :double, json_name: "downloadBytesPerSecond"
 end
 
 defmodule Opamp.Proto.AgentIdentification do
@@ -599,35 +561,6 @@ defmodule Opamp.Proto.AgentRemoteConfig do
 
   field :config, 1, type: Opamp.Proto.AgentConfigMap
   field :config_hash, 2, type: :bytes, json_name: "configHash"
-
-  use Ecto.Type
-  @impl true
-  def type, do: :binary
-
-  @doc """
-  Provides custom casting rules for params. Nothing changes here.
-  We only need to handle deserialization.
-  """
-  def cast(:any, term), do: {:ok, term}
-  @impl true
-  def cast(term), do: {:ok, term}
-
-  @doc """
-  Convert the map from the database back to
-  the desired term.
-  """
-  @impl true
-  def load(term) when is_binary(term) do
-    {:ok, Opamp.Proto.AgentRemoteConfig.decode(term)}
-  end
-
-  @doc """
-  Converting the data structure to map for storage.
-  """
-  @impl true
-  def dump(term) do
-    {:ok, Opamp.Proto.AgentRemoteConfig.encode(term)}
-  end
 end
 
 defmodule Opamp.Proto.AgentConfigMap.ConfigMapEntry do

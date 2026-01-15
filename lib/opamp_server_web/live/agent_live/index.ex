@@ -51,7 +51,10 @@ defmodule OpAMPServerWeb.AgentLive.Index do
 
   @impl true
   def handle_info({:agent_updated, agent}, socket) do
-    {:noreply, socket |> stream_delete(:agent_collection, agent) |> stream_insert(:agent_collection, agent, reset: true)}
+    {:noreply,
+     socket
+     |> stream_delete(:agent_collection, agent)
+     |> stream_insert(:agent_collection, agent, reset: true)}
   end
 
   @impl true
@@ -72,20 +75,27 @@ defmodule OpAMPServerWeb.AgentLive.Index do
     |> Calendar.strftime("%I:%M:%S %p")
   end
 
+  def find_description_field(nil, _field), do: ""
+
   def find_description_field(description, field) do
-    Enum.concat(description.identifying_attributes, description.non_identifying_attributes)
+    identifying = description.identifying_attributes || []
+    non_identifying = description.non_identifying_attributes || []
+
+    Enum.concat(identifying, non_identifying)
     |> Enum.find(fn kv -> kv.key == field end)
     |> get_value
   end
 
- defp get_value(nil), do: ""
- defp get_value(kv) do
-  case kv.value.value do
-    {:string_value, v} -> v
-    {other, _v} ->
-      IO.puts "unable to retrieve value for type #{other}"
-      ""
-  end
- end
+  defp get_value(nil), do: ""
 
+  defp get_value(kv) do
+    case kv.value.value do
+      {:string_value, v} ->
+        v
+
+      {other, _v} ->
+        IO.puts("unable to retrieve value for type #{other}")
+        ""
+    end
+  end
 end
