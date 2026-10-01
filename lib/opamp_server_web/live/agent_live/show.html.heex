@@ -45,25 +45,16 @@
     <%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
       <.table
         id="pods"
-        rows={@pod_map_keys}
-        row_click={fn pod -> JS.push("select", value: %{pod: pod}) end}
+        rows={pods(@agent, @collector)}
+        row_click={fn {pod, _health} -> JS.push("select", value: %{pod: pod}) end}
       >
-        <:col :let={pod} label="Pod Name"><%= pod %></:col>
-        <:col :let={pod} label="Status">
-          <%= get_effective_config_field(
-            @agent.component_health.component_health_map[@collector].component_health_map[pod],
-            :status
-          ) %>
+        <:col :let={{pod, _health}} label="Pod Name"><%= pod %></:col>
+        <:col :let={{_pod, health}} label="Status"><%= health.status %></:col>
+        <:col :let={{_pod, health}} label="Start Time">
+          <%= render_time(health.start_time_unix_nano) %> UTC
         </:col>
-        <:col :let={pod} label="Start Time">
-          <%= render_time(
-            @agent.component_health.component_health_map[@collector].component_health_map[pod].start_time_unix_nano
-          ) %> UTC
-        </:col>
-        <:col :let={pod} label="Last Heartbeat">
-          <%= render_time(
-            @agent.component_health.component_health_map[@collector].component_health_map[pod].status_time_unix_nano
-          ) %> UTC
+        <:col :let={{_pod, health}} label="Last Heartbeat">
+          <%= render_time(health.status_time_unix_nano) %> UTC
         </:col>
       </.table>
     <% end %>
@@ -101,14 +92,3 @@
     </div>
   <% end %>
 </div>
-
-<.modal :if={@live_action == :edit} id="agent-modal" show on_cancel={JS.patch(~p"/#{@agent}")}>
-  <.live_component
-    module={OpAMPServerWeb.AgentLive.FormComponent}
-    id={@agent.id}
-    title={@page_title}
-    action={@live_action}
-    agent={@agent}
-    patch={~p"/#{@agent}"}
-  />
-</.modal>

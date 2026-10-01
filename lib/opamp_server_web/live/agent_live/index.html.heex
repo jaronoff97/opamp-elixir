@@ -17,13 +17,12 @@
     <% end %>
   </:col>
   <:col :let={{_id, agent}} label="Number of Collectors">
-    <%= map_size(agent.effective_config.config_map.config_map) %>
+    <%= collector_count(agent) %>
   </:col>
   <:action :let={{_id, agent}}>
     <div class="sr-only">
       <.link navigate={~p"/#{agent}"}>Show</.link>
     </div>
-    <.link patch={~p"/#{agent}/edit"}>Edit</.link>
   </:action>
   <:action :let={{id, agent}}>
     <.link
@@ -34,14 +33,3 @@
     </.link>
   </:action>
 </.table>
-
-<.modal :if={@live_action in [:new, :edit]} id="agent-modal" show on_cancel={JS.patch(~p"/")}>
-  <.live_component
-    module={OpAMPServerWeb.AgentLive.FormComponent}
-    id={@agent.id || :new}
-    title={@page_title}
-    action={@live_action}
-    agent={@agent}
-    patch={~p"/"}
-  />
-</.modal>

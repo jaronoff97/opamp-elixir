@@ -11,36 +11,13 @@ defmodule OpAMPServerWeb.AgentLive.Index do
   end
 
   @impl true
-  def handle_params(params, _url, socket) do
-    {:noreply, apply_action(socket, socket.assigns.live_action, params)}
+  def handle_params(_params, _url, socket) do
+    {:noreply, assign(socket, :page_title, "Listing Agent")}
   end
 
   def time_since(updated_datetime) do
     DateTime.utc_now()
     |> DateTime.diff(DateTime.from_unix!(updated_datetime, :nanosecond))
-  end
-
-  defp apply_action(socket, :edit, %{"id" => id}) do
-    socket
-    |> assign(:page_title, "Edit Agent")
-    |> assign(:agent, Agents.get_agent!(id))
-  end
-
-  defp apply_action(socket, :new, _params) do
-    socket
-    |> assign(:page_title, "New Agent")
-    |> assign(:agent, %Agent{})
-  end
-
-  defp apply_action(socket, :index, _params) do
-    socket
-    |> assign(:page_title, "Listing Agent")
-    |> assign(:agent, nil)
-  end
-
-  @impl true
-  def handle_info({OpAMPServerWeb.AgentLive.FormComponent, {:saved, agent}}, socket) do
-    {:noreply, stream_insert(socket, :agent_collection, agent)}
   end
 
   @impl true
@@ -64,11 +41,20 @@ defmodule OpAMPServerWeb.AgentLive.Index do
 
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    agent = Agents.get_agent(id)
-    {:ok, _} = Agents.delete_agent(agent)
+    # The agent can disconnect, which deletes it, after the page rendered its row.
+    case Agents.get_agent(id) do
+      nil -> :ok
+      agent -> {:ok, _} = Agents.delete_agent(agent)
+    end
 
-    {:noreply, stream_delete(socket, :agent_collection, agent)}
+    {:noreply, stream_delete(socket, :agent_collection, %Agent{id: id})}
   end
+
+  # An agent reports its config only with the ReportsEffectiveConfig capability.
+  def collector_count(%{effective_config: %{config_map: %{config_map: objects}}}),
+    do: map_size(objects)
+
+  def collector_count(_agent), do: 0
 
   def render_time(last_heartbeat) do
     DateTime.from_unix!(last_heartbeat, :nanosecond)

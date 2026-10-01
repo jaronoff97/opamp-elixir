@@ -147,6 +147,50 @@ defmodule OpAMPServer.Agents do
     )
   end
 
+  @doc """
+  Returns the agent's complete config map, with the body of the object at `key` replaced.
+
+  A remote config replaces the whole config of the agent. For example, the OpAMP Bridge deletes
+  every managed collector that a remote config omits. So the map starts from all objects that the
+  agent reports in its effective config, plus the server's desired config, which wins on a conflict.
+  The edited object keeps its content_type and role.
+  """
+  def config_map_with(%Agent{} = agent, key, body) do
+    effective =
+      for {k, object} <- agent.effective_config.config_map.config_map,
+          not unmanaged_collector?(object.body),
+          into: %{},
+          do: {k, object}
+
+    desired =
+      case agent.desired_remote_config do
+        %{config: %{config_map: config_map}} -> config_map
+        _ -> %{}
+      end
+
+    objects = Map.merge(effective, desired)
+    object = Map.get(objects, key) || %Opamp.Proto.AgentConfigObject{}
+
+    %Opamp.Proto.AgentConfigMap{config_map: Map.put(objects, key, %{object | body: body})}
+  end
+
+  # The OpAMP Bridge also reports collectors that it must not change, and it rejects a remote
+  # config for them. It manages a collector only with the opamp-managed label and without
+  # `opamp-reporting: "true"`. Bodies of other agents are not collector resources, so they stay.
+  defp unmanaged_collector?(body) do
+    case YamlElixir.read_from_string(body) do
+      {:ok, %{"kind" => "OpenTelemetryCollector"} = collector} ->
+        labels = get_in(collector, ["metadata", "labels"]) || %{}
+        label = &String.downcase(to_string(labels[&1]))
+
+        label.("opentelemetry.io/opamp-managed") in ["", "false"] or
+          label.("opentelemetry.io/opamp-reporting") == "true"
+
+      _ ->
+        false
+    end
+  end
+
   def generate_desired_remote_config(conf) do
     %Opamp.Proto.AgentRemoteConfig{
       config_hash: :crypto.hash(:md5, Opamp.Proto.AgentConfigMap.encode(conf)),

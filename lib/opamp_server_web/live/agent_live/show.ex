@@ -22,7 +22,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
   @impl true
   def handle_params(%{"id" => id}, _, socket) do
-    agent = Agents.get_agent!(id)
+    agent = id |> Agents.get_agent!() |> with_defaults()
     map_keys = get_config_map_keys(agent)
 
     {:noreply,
@@ -32,12 +32,23 @@ defmodule OpAMPServerWeb.AgentLive.Show do
      |> assign(map_keys: map_keys)}
   end
 
-  defp get_config_map_keys(%{effective_config: nil}), do: []
-  defp get_config_map_keys(%{effective_config: %{config_map: nil}}), do: []
-  defp get_config_map_keys(%{effective_config: %{config_map: %{config_map: nil}}}), do: []
+  defp get_config_map_keys(agent), do: Map.keys(agent.effective_config.config_map.config_map)
 
-  defp get_config_map_keys(%{effective_config: %{config_map: %{config_map: config_map}}}),
-    do: Map.keys(config_map)
+  # An agent reports health and config only with the matching capabilities, so either can be
+  # missing. Empty defaults let the template read them without checks.
+  defp with_defaults(agent) do
+    config_map =
+      case agent.effective_config do
+        %{config_map: %Opamp.Proto.AgentConfigMap{} = config_map} -> config_map
+        _ -> %Opamp.Proto.AgentConfigMap{}
+      end
+
+    %{
+      agent
+      | component_health: agent.component_health || %Opamp.Proto.ComponentHealth{},
+        effective_config: %Opamp.Proto.EffectiveConfig{config_map: config_map}
+    }
+  end
 
   @impl true
   def handle_info({:agent_created, _agent}, socket) do
@@ -75,10 +86,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
        |> assign(:collector, nil)
        |> push_event("reset", %{})}
     else
-      {:noreply,
-       socket
-       |> assign_pods(collector)
-       |> assign(:collector, collector)}
+      {:noreply, assign(socket, :collector, collector)}
     end
   end
 
@@ -93,14 +101,10 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   def handle_event("save", %{"agent" => %{"effective_config" => new_config}}, socket) do
     agent = Agents.get_agent(socket.assigns.agent_id)
 
-    # Keep content_type and role so the agent reads the new body the same way.
-    object = agent.effective_config.config_map.config_map[socket.assigns.collector]
-
-    updated = %Opamp.Proto.AgentConfigMap{
-      config_map: %{socket.assigns.collector => %{object | body: new_config}}
-    }
-
-    remote_config = Agents.generate_desired_remote_config(updated)
+    remote_config =
+      agent
+      |> Agents.config_map_with(socket.assigns.collector, new_config)
+      |> Agents.generate_desired_remote_config()
 
     case Agents.update_agent(agent, %{desired_remote_config: remote_config}) do
       {:ok, _agent} ->
@@ -142,6 +146,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
   defp update_agent_data(socket, agent) do
     # Update agent data without resetting collector selection
+    agent = with_defaults(agent)
     changeset = Agents.Agent.changeset(agent, %{})
 
     config_hash =
@@ -159,6 +164,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
 
   defp assign_initial_changeset(socket, agent) do
     # Assign a changeset to the most recent snippet, if one exists, or a new snippet.
+    agent = with_defaults(agent)
     changeset = Agents.Agent.changeset(agent, %{})
 
     config_hash =
@@ -179,7 +185,8 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   def config_key_label(""), do: "(default)"
   def config_key_label(key), do: key
 
-  def render_time(nil), do: ""
+  # 0 is the protobuf default: the agent has not reported the time.
+  def render_time(time) when time in [nil, 0], do: ""
 
   def render_time(last_heartbeat) do
     DateTime.from_unix!(last_heartbeat, :nanosecond)
@@ -194,14 +201,13 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     |> contains_managed
   end
 
-  defp assign_pods(socket, collector) do
-    socket
-    |> assign(
-      :pod_map_keys,
-      Map.keys(
-        socket.assigns.agent.component_health.component_health_map[collector].component_health_map
-      )
-    )
+  # Read the pods from the current health on each render: a rollout replaces pods while the
+  # page is open. A collector has no health entry until the agent reports one.
+  def pods(agent, collector) do
+    case agent.component_health do
+      %{component_health_map: %{^collector => %{component_health_map: pods}}} -> Enum.sort(pods)
+      _ -> []
+    end
   end
 
   defp contains_managed(nil), do: "❓"
