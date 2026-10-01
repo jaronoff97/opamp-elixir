@@ -5,6 +5,8 @@ import Config
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
+config :opamp_server, max_message_size: 64 * 1024
+
 config :opamp_server, OpAMPServer.Repo,
   username: "postgres",
   password: "postgres",

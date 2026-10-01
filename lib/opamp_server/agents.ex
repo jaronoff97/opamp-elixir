@@ -6,7 +6,7 @@ defmodule OpAMPServer.Agents do
   import Ecto.Query, warn: false
   alias OpAMPServer.Repo
 
-  alias OpAMPServer.Agents.Agent
+  alias OpAMPServer.Agents.{Agent, Certificate}
 
   def subscribe do
     Phoenix.PubSub.subscribe(OpAMPServer.PubSub, "agents")
@@ -124,6 +124,27 @@ defmodule OpAMPServer.Agents do
   """
   def change_agent(%Agent{} = agent, attrs \\ %{}) do
     Agent.changeset(agent, attrs)
+  end
+
+  @doc """
+  Returns the client certificate (an `Opamp.Proto.TLSCertificate`) issued to the agent, or nil.
+  """
+  def get_certificate(agent_id) do
+    case Repo.get(Certificate, agent_id) do
+      nil -> nil
+      row -> Opamp.Proto.TLSCertificate.decode(row.certificate)
+    end
+  end
+
+  @doc """
+  Stores the client certificate issued to the agent, and replaces any earlier one.
+  """
+  def put_certificate(agent_id, %Opamp.Proto.TLSCertificate{} = certificate) do
+    Repo.insert(
+      %Certificate{id: agent_id, certificate: Opamp.Proto.TLSCertificate.encode(certificate)},
+      on_conflict: {:replace, [:certificate, :updated_at]},
+      conflict_target: :id
+    )
   end
 
   def generate_desired_remote_config(conf) do

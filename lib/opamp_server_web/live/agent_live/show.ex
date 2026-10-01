@@ -16,8 +16,7 @@ defmodule OpAMPServerWeb.AgentLive.Show do
         {:ok,
          socket
          |> assign_initial_changeset(agent)
-         |> assign(:agent_id, id)
-         |> assign(:collector, "")}
+         |> assign(:agent_id, id)}
     end
   end
 
@@ -51,6 +50,11 @@ defmodule OpAMPServerWeb.AgentLive.Show do
      socket
      |> set_flash(agent)
      |> update_agent_data(agent)}
+  end
+
+  @impl true
+  def handle_info({:agent_superseded, _pid}, socket) do
+    {:noreply, socket}
   end
 
   @impl true
@@ -89,12 +93,11 @@ defmodule OpAMPServerWeb.AgentLive.Show do
   def handle_event("save", %{"agent" => %{"effective_config" => new_config}}, socket) do
     agent = Agents.get_agent(socket.assigns.agent_id)
 
+    # Keep content_type and role so the agent reads the new body the same way.
+    object = agent.effective_config.config_map.config_map[socket.assigns.collector]
+
     updated = %Opamp.Proto.AgentConfigMap{
-      config_map: %{
-        socket.assigns.collector => %Opamp.Proto.AgentConfigFile{
-          body: new_config
-        }
-      }
+      config_map: %{socket.assigns.collector => %{object | body: new_config}}
     }
 
     remote_config = Agents.generate_desired_remote_config(updated)
@@ -171,6 +174,10 @@ defmodule OpAMPServerWeb.AgentLive.Show do
     |> assign(config_hash: config_hash)
     |> assign(form: Phoenix.Component.to_form(changeset))
   end
+
+  # The spec allows "" as a config key, for agents with a single config object.
+  def config_key_label(""), do: "(default)"
+  def config_key_label(key), do: key
 
   def render_time(nil), do: ""
 

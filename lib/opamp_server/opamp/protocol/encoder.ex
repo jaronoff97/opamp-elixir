@@ -71,10 +71,10 @@ defmodule OpAMPServer.OpAMP.Protocol.Encoder do
   end
 
   @doc """
-  Encode a ServerToAgent struct to binary.
+  Encode a ServerToAgent struct to an OpAMP WebSocket message: the varint header 0, then the data.
   """
   def encode(%Opamp.Proto.ServerToAgent{} = message) do
-    Opamp.Proto.ServerToAgent.encode(message)
+    <<0>> <> Opamp.Proto.ServerToAgent.encode(message)
   end
 
   @doc """

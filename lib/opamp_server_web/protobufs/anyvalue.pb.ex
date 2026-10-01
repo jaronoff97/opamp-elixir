@@ -1,9 +1,12 @@
 defmodule Opamp.Proto.AnyValue do
   @moduledoc false
 
-  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+  use Protobuf,
+    full_name: "opamp.proto.AnyValue",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
 
-  oneof(:value, 0)
+  oneof :value, 0
 
   field :string_value, 1, type: :string, json_name: "stringValue", oneof: 0
   field :bool_value, 2, type: :bool, json_name: "boolValue", oneof: 0
@@ -17,7 +20,10 @@ end
 defmodule Opamp.Proto.ArrayValue do
   @moduledoc false
 
-  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+  use Protobuf,
+    full_name: "opamp.proto.ArrayValue",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
 
   field :values, 1, repeated: true, type: Opamp.Proto.AnyValue
 end
@@ -25,7 +31,10 @@ end
 defmodule Opamp.Proto.KeyValueList do
   @moduledoc false
 
-  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+  use Protobuf,
+    full_name: "opamp.proto.KeyValueList",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
 
   field :values, 1, repeated: true, type: Opamp.Proto.KeyValue
 end
@@ -33,7 +42,10 @@ end
 defmodule Opamp.Proto.KeyValue do
   @moduledoc false
 
-  use Protobuf, syntax: :proto3, protoc_gen_elixir_version: "0.12.0"
+  use Protobuf,
+    full_name: "opamp.proto.KeyValue",
+    protoc_gen_elixir_version: "0.17.0",
+    syntax: :proto3
 
   field :key, 1, type: :string
   field :value, 2, type: Opamp.Proto.AnyValue

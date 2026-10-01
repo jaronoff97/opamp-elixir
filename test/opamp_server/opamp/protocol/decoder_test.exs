@@ -130,8 +130,9 @@ defmodule OpAMPServer.OpAMP.Protocol.DecoderTest do
 
     test "returns error for invalid binary" do
       assert {:error, :invalid_message_format} = Decoder.decode_agent_message(<<>>)
-      # Strings are binaries in Elixir, so they get decoded (and fail as invalid protobuf)
-      assert {:error, {:decode_error, _}} = Decoder.decode_agent_message("not binary")
+      # "n" is not a valid header, so the decoder rejects the message before protobuf decoding.
+      assert {:error, :invalid_message_format} = Decoder.decode_agent_message("not binary")
+      assert {:error, {:decode_error, _}} = Decoder.decode_agent_message(<<0, 255, 255, 255>>)
     end
 
     test "returns error for malformed protobuf data" do
@@ -141,12 +142,13 @@ defmodule OpAMPServer.OpAMP.Protocol.DecoderTest do
       assert {:error, {:decode_error, _}} = Decoder.decode_agent_message(invalid_binary)
     end
 
-    test "handles different header byte values" do
+    test "rejects a non-zero header" do
       message = build_agent_to_server()
-      # OpAMP allows different header values
+      # The spec reserves header values other than 0.
       binary_with_header_1 = <<1>> <> Opamp.Proto.AgentToServer.encode(message)
 
-      assert {:ok, _proto, _agent_id} = Decoder.decode_agent_message(binary_with_header_1)
+      assert {:error, :invalid_message_format} =
+               Decoder.decode_agent_message(binary_with_header_1)
     end
   end
 

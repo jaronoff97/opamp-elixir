@@ -33,18 +33,11 @@ defmodule OpAMPServer.OpAMP.Protocol.HelpersTest do
       assert (result &&& 4) != 0
     end
 
-    test "includes OffersConnectionSettings capability" do
+    test "omits the connection settings capabilities without configuration" do
       import Bitwise
       result = Helpers.server_capabilities()
 
-      assert (result &&& 32) != 0
-    end
-
-    test "includes AcceptsConnectionSettingsRequest capability" do
-      import Bitwise
-      result = Helpers.server_capabilities()
-
-      assert (result &&& 64) != 0
+      assert (result &&& (32 ||| 64)) == 0
     end
 
     test "returns consistent value across calls" do

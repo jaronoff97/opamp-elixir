@@ -18,7 +18,10 @@ defmodule OpAMPServerWeb.Endpoint do
         connect_info: [session: @session_options],
         path: "", 
         serializer: [{OpAMPServerWeb.Serializer, "1.0.0"}],
-        timeout: 900000 # 15 minutes
+        timeout: 900000, # 15 minutes
+        # Bandit closes the connection with 1009 (Message Too Big) when a frame exceeds this.
+        # ponytail: limits each frame, not a whole fragmented message; agents send one frame per message
+        max_frame_size: Application.compile_env!(:opamp_server, :max_message_size)
       ],
       longpoll: false
 

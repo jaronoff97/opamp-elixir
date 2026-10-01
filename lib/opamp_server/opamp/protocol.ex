@@ -6,28 +6,8 @@ defmodule OpAMPServer.OpAMP.Protocol do
   isolating protocol logic from transport concerns (Phoenix channels, WebSockets, etc.).
   """
 
-  alias OpAMPServer.OpAMP.Protocol.Decoder
   alias OpAMPServer.OpAMP.Protocol.Encoder
   alias OpAMPServer.OpAMP.Protocol.Helpers
-  alias OpAMPServer.OpAMP.ConnectionManager
-
-  @doc """
-  Process an incoming binary OpAMP message.
-
-  Returns `{:join, agent_id, proto, response}` for new connections
-  or `{:message, agent_id, proto, response}` for existing connections.
-  """
-  def process_message(binary) do
-    with {:ok, proto, agent_id} <- Decoder.decode_agent_message(binary),
-         is_new <- ConnectionManager.is_new_connection?(agent_id) do
-      if is_new do
-        ConnectionManager.register(agent_id)
-        {:join, agent_id, proto}
-      else
-        {:message, agent_id, proto}
-      end
-    end
-  end
 
   @doc """
   Build a ServerToAgent response message.

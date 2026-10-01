@@ -20,10 +20,36 @@ if System.get_env("PHX_SERVER") do
   config :opamp_server, OpAMPServerWeb.Endpoint, server: true
 end
 
+# Connection settings that the server offers to agents. See OpAMPServer.OpAMP.ConnectionSettings.
+config :opamp_server, :connection_settings,
+  offers_file: System.get_env("OPAMP_CONNECTION_SETTINGS_FILE"),
+  ca_cert_file: System.get_env("OPAMP_CA_CERT_FILE"),
+  ca_key_file: System.get_env("OPAMP_CA_KEY_FILE")
+
+# An HTTPS listener. With a CA, it asks agents for a client certificate signed by that CA, but it
+# also accepts agents without one, so that they can connect first and then send a CSR.
+if certfile = System.get_env("OPAMP_TLS_CERT_FILE") do
+  client_verify =
+    if cacertfile = System.get_env("OPAMP_CA_CERT_FILE"),
+      do: [verify: :verify_peer, fail_if_no_peer_cert: false, cacertfile: cacertfile],
+      else: []
+
+  config :opamp_server, OpAMPServerWeb.Endpoint,
+    https: [
+      port: String.to_integer(System.get_env("OPAMP_TLS_PORT") || "4321"),
+      certfile: certfile,
+      keyfile: System.fetch_env!("OPAMP_TLS_KEY_FILE"),
+      thousand_island_options: [transport_options: client_verify]
+    ]
+end
+
 if config_env() == :prod do
   dbhost = System.get_env("PGHOST") || raise "environment variable PGHOST is missing."
   dbport = System.get_env("PGPORT") || raise "environment variable PGPORT is missing."
-  database_name = System.get_env("PGDATABASE") || raise "environment variable PGDATABASE is missing."
+
+  database_name =
+    System.get_env("PGDATABASE") || raise "environment variable PGDATABASE is missing."
+
   dbuser = System.get_env("PGUSER") || raise "environment variable PGUSER is missing."
   dbpass = System.get_env("PGPASSWORD") || raise "environment variable PGPASSWORD is missing."
 

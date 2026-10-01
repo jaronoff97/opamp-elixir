@@ -11,8 +11,13 @@ defmodule OpAMPServerWeb.Serializer do
 
   alias Phoenix.Socket.{Reply, Message, Broadcast}
   alias OpAMPServer.OpAMP.Protocol
-  alias OpAMPServer.OpAMP.Protocol.Encoder
-  alias OpAMPServer.OpAMP.ConnectionManager
+  alias OpAMPServer.OpAMP.Protocol.{Decoder, Encoder}
+
+  require Logger
+
+  # No channel matches this topic, so Phoenix answers with an "unmatched topic"
+  # error reply, which encode!/1 turns into a BadRequest.
+  @bad_request_topic "opamp:bad_request"
 
   @doc """
   Encode a broadcast message for fast-path delivery.
@@ -24,6 +29,21 @@ defmodule OpAMPServerWeb.Serializer do
   @doc """
   Encode a reply or regular message.
   """
+  # The serializer runs in the socket process, so the process dictionary holds the
+  # join state of this connection only. Forget the join when the channel is gone,
+  # so that the next message from the agent joins again.
+  def encode!(%Reply{topic: @bad_request_topic}) do
+    {:socket_push, :binary,
+     encode_payload(
+       Protocol.build_error_response({:bad_request, "malformed AgentToServer message"})
+     )}
+  end
+
+  def encode!(%Reply{status: :error, payload: %{reason: "unmatched topic"}} = reply) do
+    Process.delete({__MODULE__, reply.topic})
+    {:socket_push, :binary, encode_payload(build_error_payload(reply.payload))}
+  end
+
   def encode!(%Reply{} = reply) do
     payload =
       case reply.status do
@@ -32,6 +52,11 @@ defmodule OpAMPServerWeb.Serializer do
       end
 
     {:socket_push, :binary, encode_payload(payload)}
+  end
+
+  def encode!(%Message{event: event} = msg) when event in ["phx_error", "phx_close"] do
+    Process.delete({__MODULE__, msg.topic})
+    {:socket_push, :binary, encode_payload(msg.payload)}
   end
 
   def encode!(%Message{} = msg) do
@@ -82,19 +107,22 @@ defmodule OpAMPServerWeb.Serializer do
     }
   end
 
-  defp decode_binary(<<_header::size(8), data::binary>>) do
-    proto = Opamp.Proto.AgentToServer.decode(data)
-    instance_uuid = Ecto.UUID.load!(proto.instance_uid)
+  defp decode_binary(raw_message) do
+    case Decoder.decode_agent_message(raw_message) do
+      {:ok, proto, instance_uuid} ->
+        # Process.put/2 returns the old value: nil means this connection has not joined yet.
+        case Process.put({__MODULE__, "agents:" <> instance_uuid}, true) do
+          nil -> handle_join(proto, instance_uuid)
+          true -> handle_heartbeat(proto, instance_uuid)
+        end
 
-    case ConnectionManager.is_new_connection?(instance_uuid) do
-      true -> handle_join(proto, instance_uuid)
-      false -> handle_heartbeat(proto, instance_uuid)
+      {:error, reason} ->
+        Logger.warning("Malformed AgentToServer message: #{inspect(reason)}")
+        %Message{topic: @bad_request_topic, event: "bad_request", payload: %{}}
     end
   end
 
   defp handle_join(proto, instance_uuid) do
-    ConnectionManager.register(instance_uuid)
-
     %Message{
       topic: "agents:" <> instance_uuid,
       event: "phx_join",
@@ -104,7 +132,7 @@ defmodule OpAMPServerWeb.Serializer do
     }
   end
 
-  defp handle_heartbeat(proto, instance_uuid) when proto.sequence_num > 0 do
+  defp handle_heartbeat(proto, instance_uuid) do
     %Message{
       topic: "agents:" <> instance_uuid,
       event: "heartbeat",

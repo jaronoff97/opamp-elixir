@@ -17,7 +17,7 @@
       row_click={fn collector -> JS.push("select", value: %{collector: collector}) end}
     >
       <:col :let={collector} label="Modifiable?"><%= managed?(@agent, collector) %></:col>
-      <:col :let={collector} label="Collector Name"><%= collector %></:col>
+      <:col :let={collector} label="Collector Name"><%= config_key_label(collector) %></:col>
       <:col :let={collector} label="Replicas">
         <%= get_effective_config_field(
           @agent.component_health.component_health_map[collector],
@@ -74,7 +74,7 @@
   <%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
     <div class="w-1/2 border-l border-zinc-200 pl-6 flex flex-col max-h-[80vh]">
       <h2 class="text-lg font-semibold text-zinc-800 mb-4 flex-shrink-0">
-        Configuration: <%= @collector %>
+        Configuration: <%= config_key_label(@collector) %>
       </h2>
       <div
         id="editor"

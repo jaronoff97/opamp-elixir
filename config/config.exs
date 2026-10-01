@@ -10,7 +10,9 @@ import Config
 config :opamp_server,
   namespace: OpAMPServer,
   ecto_repos: [OpAMPServer.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  # Size limit for OpAMP WebSocket messages in both directions (spec default: 64 MiB).
+  max_message_size: 64 * 1024 * 1024
 
 # Configures the endpoint
 config :opamp_server, OpAMPServerWeb.Endpoint,
