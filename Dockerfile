@@ -20,6 +20,11 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM ${BUILDER_IMAGE} AS builder
 
+# A multi-arch build runs the other architecture under emulation (QEMU), where the Erlang
+# JIT's dual-mapped memory fails ("undefined function erlang:nif_error/1"). Single-mapped
+# JIT memory works there. Only the build stage needs this.
+ENV ERL_FLAGS="+JMsingle true"
+
 # install build dependencies
 RUN apt-get update -y && apt-get install -y build-essential nodejs npm git ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
