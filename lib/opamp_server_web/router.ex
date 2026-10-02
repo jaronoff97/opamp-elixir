@@ -14,15 +14,24 @@ defmodule OpAMPServerWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Probes for Kubernetes. They use no session or CSRF, so they skip the browser pipeline.
+  scope "/", OpAMPServerWeb do
+    get "/healthz", HealthController, :live
+    get "/readyz", HealthController, :ready
+  end
+
   scope "/", OpAMPServerWeb do
     pipe_through :browser
 
-    live "/", AgentLive.Index, :index
-    live "/new", AgentLive.Index, :new
-    live "/:id/edit", AgentLive.Index, :edit
-
-    live "/:id", AgentLive.Show, :show
-    live "/:id/show/edit", AgentLive.Show, :edit
+    live_session :default do
+      live "/", FleetLive, :index
+      live "/agents", AgentLive.Index, :index
+      live "/agents/:id", AgentLive.Show, :overview
+      live "/agents/:id/config", AgentLive.Show, :config
+      live "/agents/:id/pipeline", AgentLive.Show, :pipeline
+      live "/agents/:id/connection", AgentLive.Show, :connection
+      live "/settings", SettingsLive, :index
+    end
   end
 
   # Other scopes may use custom stacks.

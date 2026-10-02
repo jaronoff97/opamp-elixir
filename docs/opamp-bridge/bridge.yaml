@@ -1,0 +1,20 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpAMPBridge
+metadata:
+  name: opamp-bridge
+  namespace: default
+spec:
+  image: ghcr.io/open-telemetry/opentelemetry-operator/operator-opamp-bridge:latest
+  imagePullPolicy: IfNotPresent
+  serviceAccount: opamp-bridge
+  # host.orb.internal reaches the Mac host from OrbStack pods, also for servers bound to 127.0.0.1.
+  endpoint: ws://host.orb.internal:4320/v1/opamp
+  capabilities:
+    AcceptsRemoteConfig: true
+    ReportsEffectiveConfig: true
+    ReportsHealth: true
+    ReportsRemoteConfig: true
+  componentsAllowed:
+    receivers: [otlp]
+    processors: [memory_limiter, batch]
+    exporters: [debug, otlphttp]

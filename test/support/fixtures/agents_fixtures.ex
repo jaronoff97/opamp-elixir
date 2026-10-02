@@ -52,4 +52,87 @@ defmodule OpAMPServer.AgentsFixtures do
 
     agent
   end
+
+  @doc """
+  The body of an OpenTelemetryCollector resource, as the OpAMP Bridge reports it.
+  """
+  def collector_body(name, labels \\ %{"opentelemetry.io/opamp-managed" => "true"}) do
+    """
+    apiVersion: opentelemetry.io/v1beta1
+    kind: OpenTelemetryCollector
+    metadata:
+      name: #{name}
+      labels: #{Jason.encode!(labels)}
+    spec: {}
+    """
+  end
+
+  @doc """
+  An effective config with one object for each `key => body`.
+  """
+  def effective_config_fixture(objects) do
+    %Opamp.Proto.EffectiveConfig{
+      config_map: %Opamp.Proto.AgentConfigMap{
+        config_map:
+          Map.new(objects, fn {key, body} ->
+            {key, %Opamp.Proto.AgentConfigObject{body: body, content_type: "yaml"}}
+          end)
+      }
+    }
+  end
+
+  @doc """
+  Component health for `collector => [pod name]`, as the OpAMP Bridge reports it.
+  All times are `time` (a DateTime).
+  """
+  def health_fixture(collectors, time \\ ~U[2026-01-02 03:04:05Z]) do
+    nanos = DateTime.to_unix(time, :nanosecond)
+
+    health = fn status, children ->
+      %Opamp.Proto.ComponentHealth{
+        healthy: true,
+        status: status,
+        start_time_unix_nano: nanos,
+        status_time_unix_nano: nanos,
+        component_health_map: children
+      }
+    end
+
+    health.(
+      "OK",
+      Map.new(collectors, fn {collector, pods} ->
+        {collector,
+         health.("#{length(pods)}/#{length(pods)}", Map.new(pods, &{&1, health.("Running", %{})}))}
+      end)
+    )
+  end
+
+  @doc """
+  The body of a managed OpenTelemetryCollector resource with one traces pipeline:
+  otlp -> memory_limiter -> batch -> debug.
+  """
+  def pipeline_collector_body(name) do
+    """
+    apiVersion: opentelemetry.io/v1beta1
+    kind: OpenTelemetryCollector
+    metadata:
+      name: #{name}
+      labels: {"opentelemetry.io/opamp-managed": "true"}
+    spec:
+      config:
+        receivers:
+          otlp: {protocols: {grpc: {endpoint: "0.0.0.0:4317"}}}
+        processors:
+          memory_limiter: {check_interval: 1s}
+          batch: {}
+        exporters:
+          debug: {}
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [memory_limiter, batch]
+              exporters: [debug]
+    """
+  end
 end

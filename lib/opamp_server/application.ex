@@ -7,6 +7,8 @@ defmodule OpAMPServer.Application do
 
   @impl true
   def start(_type, _args) do
+    OpAMPServer.OpAMP.ConnectionSettings.load!()
+
     children = [
       OpAMPServerWeb.Telemetry,
       OpAMPServer.Repo,
@@ -14,8 +16,6 @@ defmodule OpAMPServer.Application do
       {Phoenix.PubSub, name: OpAMPServer.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: OpAMPServer.Finch},
-      # OpAMP connection manager (must start before Endpoint)
-      OpAMPServer.OpAMP.ConnectionManager,
       # Start to serve requests, typically the last entry
       OpAMPServerWeb.Endpoint
     ]

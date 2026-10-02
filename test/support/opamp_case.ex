@@ -12,7 +12,6 @@ defmodule OpAMPServer.OpAMPCase do
       import OpAMPServer.OpAMPCase
       alias OpAMPServer.OpAMP.Protocol
       alias OpAMPServer.OpAMP.Protocol.{Decoder, Encoder, Helpers}
-      alias OpAMPServer.OpAMP.ConnectionManager
     end
   end
 
@@ -176,10 +175,10 @@ defmodule OpAMPServer.OpAMPCase do
   end
 
   @doc """
-  Build an AgentConfigFile.
+  Build an AgentConfigObject.
   """
   def build_agent_config_file(body, content_type \\ "text/yaml") do
-    %Opamp.Proto.AgentConfigFile{
+    %Opamp.Proto.AgentConfigObject{
       body: body,
       content_type: content_type
     }
@@ -451,6 +450,11 @@ defmodule OpAMPServer.OpAMPCase do
   def encode_with_header(%Opamp.Proto.AgentToServer{} = message) do
     <<0>> <> Opamp.Proto.AgentToServer.encode(message)
   end
+
+  @doc """
+  Decode a ServerToAgent from an OpAMP WebSocket message (header 0, then the data).
+  """
+  def decode_server_to_agent(<<0, data::binary>>), do: Opamp.Proto.ServerToAgent.decode(data)
 
   @doc """
   Default agent capabilities bitmask.

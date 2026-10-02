@@ -11,17 +11,22 @@
 #   - https://pkgs.org/ - resource for finding needed packages
 #   - Ex: hexpm/elixir:1.15.7-erlang-26.1.2-debian-bullseye-20230612-slim
 #
-ARG ELIXIR_VERSION=1.15.7
-ARG OTP_VERSION=26.1.2
-ARG DEBIAN_VERSION=bullseye-20230612-slim
+ARG ELIXIR_VERSION=1.20.4
+ARG OTP_VERSION=29.1.1
+ARG DEBIAN_VERSION=trixie-20260918-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
-FROM ${BUILDER_IMAGE} as builder
+FROM ${BUILDER_IMAGE} AS builder
+
+# A multi-arch build runs the other architecture under emulation (QEMU), where the Erlang
+# JIT's dual-mapped memory fails ("undefined function erlang:nif_error/1"). Single-mapped
+# JIT memory works there. Only the build stage needs this.
+ENV ERL_FLAGS="+JMsingle true"
 
 # install build dependencies
-RUN apt-get update -y && apt-get install -y build-essential nodejs npm git \
+RUN apt-get update -y && apt-get install -y build-essential nodejs npm git ca-certificates \
     && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # prepare build dir
@@ -49,17 +54,15 @@ COPY priv priv
 
 COPY lib lib
 
+# Compile before the assets: compiling writes the colocated LiveView hooks that
+# esbuild bundles.
+RUN mix compile
+
 COPY assets assets
 
 # compile assets
-WORKDIR assets
-RUN npm install
-WORKDIR ../
-
+RUN npm ci --prefix assets
 RUN mix assets.deploy
-
-# Compile the release
-RUN mix compile
 
 # Changes to config/runtime.exs don't require recompiling the code
 COPY config/runtime.exs config/
@@ -72,15 +75,15 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-  apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates \
+  apt-get install -y libstdc++6 openssl libncurses6 locales ca-certificates \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 WORKDIR "/app"
 RUN chown nobody /app

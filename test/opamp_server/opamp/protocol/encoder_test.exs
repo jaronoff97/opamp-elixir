@@ -75,8 +75,9 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
     test "builds error response for :unmatched_topic" do
       result = Encoder.build_error_response(:unmatched_topic)
 
-      assert %Opamp.Proto.ServerToAgent{} = result
-      assert result.error_response != nil
+      assert %Opamp.Proto.ServerToAgent{error_response: %Opamp.Proto.ServerErrorResponse{}} =
+               result
+
       assert result.error_response.type == :ServerErrorResponseType_Unavailable
       assert result.error_response.error_message == "Connection idled, reconnect requested"
     end
@@ -106,7 +107,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
       result = Encoder.build_error_response(:unmatched_topic)
 
       # Protobuf defaults: empty binary for bytes, 0 for integers
-      assert result.instance_uid == "" || result.instance_uid == nil
+      assert result.instance_uid == ""
       assert result.remote_config == nil
       assert result.capabilities == 0
     end
@@ -120,7 +121,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       assert is_binary(result)
       # Verify it can be decoded back
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.capabilities == server_to_agent.capabilities
     end
 
@@ -133,7 +134,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
       result = Encoder.encode(server_to_agent)
 
       assert is_binary(result)
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.instance_uid == "test-id"
     end
 
@@ -143,7 +144,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.remote_config != nil
       assert decoded.remote_config.config != nil
     end
@@ -158,7 +159,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.error_response.error_message == "Test error"
     end
 
@@ -172,7 +173,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.connection_settings != nil
       assert decoded.connection_settings.opamp != nil
     end
@@ -183,7 +184,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.packages_available != nil
       assert map_size(decoded.packages_available.packages) == 1
     end
@@ -194,7 +195,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.command.type == :CommandType_Restart
     end
 
@@ -205,7 +206,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.agent_identification.new_instance_uid == new_uid
     end
 
@@ -218,7 +219,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.custom_capabilities.capabilities == ["custom:feature1", "custom:feature2"]
     end
 
@@ -233,7 +234,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
 
       result = Encoder.encode(server_to_agent)
 
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.custom_message.capability == "custom:feature1"
       assert decoded.custom_message.data == "some data"
     end
@@ -284,7 +285,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
         })
 
       encoded = Encoder.encode(original)
-      decoded = Opamp.Proto.ServerToAgent.decode(encoded)
+      decoded = decode_server_to_agent(encoded)
 
       assert decoded.capabilities == original.capabilities
       assert decoded.flags == original.flags
@@ -307,7 +308,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
         })
 
       encoded = Encoder.encode(original)
-      decoded = Opamp.Proto.ServerToAgent.decode(encoded)
+      decoded = decode_server_to_agent(encoded)
 
       assert decoded.connection_settings.opamp.tls != nil
       assert decoded.packages_available != nil

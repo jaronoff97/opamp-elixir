@@ -8,20 +8,32 @@ defmodule OpAMPServer.OpAMP.Protocol.Helpers do
 
   import Bitwise
 
+  alias OpAMPServer.OpAMP.ConnectionSettings
+
   # Server capabilities
   @server_capabilities [
     Opamp.Proto.ServerCapabilities.ServerCapabilities_AcceptsStatus,
     Opamp.Proto.ServerCapabilities.ServerCapabilities_OffersRemoteConfig,
-    Opamp.Proto.ServerCapabilities.ServerCapabilities_AcceptsEffectiveConfig,
-    Opamp.Proto.ServerCapabilities.ServerCapabilities_OffersConnectionSettings,
-    Opamp.Proto.ServerCapabilities.ServerCapabilities_AcceptsConnectionSettingsRequest
+    Opamp.Proto.ServerCapabilities.ServerCapabilities_AcceptsEffectiveConfig
   ]
 
   @doc """
   Returns the bitmask of all supported server capabilities.
+
+  The connection settings capabilities depend on what `ConnectionSettings` has configured.
   """
   def server_capabilities do
     @server_capabilities
+    |> Kernel.++(
+      if ConnectionSettings.offers?(),
+        do: [Opamp.Proto.ServerCapabilities.ServerCapabilities_OffersConnectionSettings],
+        else: []
+    )
+    |> Kernel.++(
+      if ConnectionSettings.signs_csrs?(),
+        do: [Opamp.Proto.ServerCapabilities.ServerCapabilities_AcceptsConnectionSettingsRequest],
+        else: []
+    )
     |> Enum.map(&server_capability_to_int/1)
     |> Enum.reduce(0, &bor/2)
   end
@@ -64,6 +76,7 @@ defmodule OpAMPServer.OpAMP.Protocol.Helpers do
       Opamp.Proto.AgentCapabilities.AgentCapabilities_ReportsRemoteConfig -> 4096
       Opamp.Proto.AgentCapabilities.AgentCapabilities_ReportsHeartbeat -> 8192
       Opamp.Proto.AgentCapabilities.AgentCapabilities_ReportsAvailableComponents -> 16384
+      Opamp.Proto.AgentCapabilities.AgentCapabilities_ReportsConnectionSettingsStatus -> 32768
       _ -> 0
     end
   end

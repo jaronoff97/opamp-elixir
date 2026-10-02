@@ -1,0 +1,35 @@
+# Lets the bridge report and manage OpenTelemetryCollector resources.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opamp-bridge
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opamp-bridge
+rules:
+  - apiGroups: ["opentelemetry.io"]
+    resources: ["opentelemetrycollectors"]
+    verbs: ["*"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  # The bridge checks these at start, although the upstream README does not list them.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets", "statefulsets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opamp-bridge
+subjects:
+  - kind: ServiceAccount
+    name: opamp-bridge
+    namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opamp-bridge

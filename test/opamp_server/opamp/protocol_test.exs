@@ -8,85 +8,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
   use OpAMPServer.OpAMPCase
 
   alias OpAMPServer.OpAMP.Protocol
-  alias OpAMPServer.OpAMP.ConnectionManager
-
-  setup do
-    # Start a unique ConnectionManager for each test
-    name = :"protocol_test_manager_#{System.unique_integer([:positive])}"
-    {:ok, _pid} = ConnectionManager.start_link(name: name)
-
-    # Ensure the default ConnectionManager is running for Protocol module
-    case GenServer.whereis(ConnectionManager) do
-      nil ->
-        {:ok, _} = ConnectionManager.start_link()
-
-      _pid ->
-        :ok
-    end
-
-    :ok
-  end
-
-  describe "process_message/1" do
-    test "returns :join for new connection" do
-      instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
-      message = build_agent_to_server(%{instance_uid: instance_uid})
-      binary = encode_with_header(message)
-
-      # Ensure agent is not registered
-      ConnectionManager.unregister(agent_id)
-      Process.sleep(10)
-
-      result = Protocol.process_message(binary)
-
-      assert {:join, ^agent_id, proto} = result
-      assert proto.instance_uid == instance_uid
-    end
-
-    test "returns :message for existing connection" do
-      instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
-      message = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: 5})
-      binary = encode_with_header(message)
-
-      # Register the agent first
-      ConnectionManager.register(agent_id)
-
-      result = Protocol.process_message(binary)
-
-      assert {:message, ^agent_id, proto} = result
-      assert proto.sequence_num == 5
-    end
-
-    test "registers agent on join" do
-      instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
-      message = build_agent_to_server(%{instance_uid: instance_uid})
-      binary = encode_with_header(message)
-
-      ConnectionManager.unregister(agent_id)
-      Process.sleep(10)
-
-      assert ConnectionManager.is_new_connection?(agent_id) == true
-
-      Protocol.process_message(binary)
-
-      assert ConnectionManager.connected?(agent_id) == true
-    end
-
-    test "preserves proto fields through processing" do
-      message = build_full_agent_to_server()
-      binary = encode_with_header(message)
-
-      {:join, _agent_id, proto} = Protocol.process_message(binary)
-
-      assert proto.agent_description != nil
-      assert proto.health != nil
-      assert proto.effective_config != nil
-      assert proto.capabilities == message.capabilities
-    end
-  end
+  alias OpAMPServer.OpAMP.Protocol.Decoder
 
   describe "build_response/2" do
     test "builds response with default capabilities" do
@@ -139,7 +61,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
       result = Protocol.encode(message)
 
       assert is_binary(result)
-      decoded = Opamp.Proto.ServerToAgent.decode(result)
+      decoded = decode_server_to_agent(result)
       assert decoded.capabilities == message.capabilities
     end
   end
@@ -193,17 +115,14 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
       join_message = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: 1})
       join_binary = encode_with_header(join_message)
 
-      ConnectionManager.unregister(agent_id)
-      Process.sleep(10)
-
-      {:join, ^agent_id, _} = Protocol.process_message(join_binary)
+      {:ok, _, ^agent_id} = Decoder.decode_agent_message(join_binary)
 
       # Subsequent messages - should be regular messages
       for seq <- 2..5 do
         heartbeat = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: seq})
         binary = encode_with_header(heartbeat)
 
-        {:message, ^agent_id, proto} = Protocol.process_message(binary)
+        {:ok, proto, ^agent_id} = Decoder.decode_agent_message(binary)
         assert proto.sequence_num == seq
       end
     end
@@ -220,7 +139,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
 
       binary1 = encode_with_header(healthy_message)
 
-      {:join, agent_id, proto1} = Protocol.process_message(binary1)
+      {:ok, proto1, agent_id} = Decoder.decode_agent_message(binary1)
       assert proto1.health.healthy == true
 
       # Status changes to unhealthy
@@ -238,7 +157,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
 
       binary2 = encode_with_header(unhealthy_message)
 
-      {:message, ^agent_id, proto2} = Protocol.process_message(binary2)
+      {:ok, proto2, ^agent_id} = Decoder.decode_agent_message(binary2)
       assert proto2.health.healthy == false
       assert proto2.health.last_error == "Connection timeout"
     end
@@ -263,7 +182,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
 
       binary1 = encode_with_header(message1)
 
-      {:join, agent_id, proto1} = Protocol.process_message(binary1)
+      {:ok, proto1, agent_id} = Decoder.decode_agent_message(binary1)
       assert proto1.effective_config.config_map.config_map["collector.yaml"].body == "version: 1"
 
       # Updated config
@@ -284,7 +203,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
 
       binary2 = encode_with_header(message2)
 
-      {:message, ^agent_id, proto2} = Protocol.process_message(binary2)
+      {:ok, proto2, ^agent_id} = Decoder.decode_agent_message(binary2)
       assert proto2.effective_config.config_map.config_map["collector.yaml"].body == "version: 2"
     end
 
@@ -308,7 +227,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
           remote_config_status: first_status
         })
 
-      {:join, agent_id, _} = Protocol.process_message(encode_with_header(first_msg))
+      {:ok, _, agent_id} = Decoder.decode_agent_message(encode_with_header(first_msg))
 
       # Process remaining status updates
       for {{status, error}, seq} <- Enum.with_index(tl(statuses), 2) do
@@ -321,7 +240,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
             remote_config_status: config_status
           })
 
-        {:message, ^agent_id, proto} = Protocol.process_message(encode_with_header(message))
+        {:ok, proto, ^agent_id} = Decoder.decode_agent_message(encode_with_header(message))
         assert proto.remote_config_status.status == status
       end
     end
@@ -332,7 +251,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
       message = build_agent_to_server(%{capabilities: all_agent_capabilities()})
       binary = encode_with_header(message)
 
-      {:join, _agent_id, proto} = Protocol.process_message(binary)
+      {:ok, proto, _agent_id} = Decoder.decode_agent_message(binary)
 
       # Verify all capabilities are preserved
       assert Protocol.agent_has_capability?(
@@ -361,7 +280,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
       message = build_agent_to_server(%{available_components: components})
       binary = encode_with_header(message)
 
-      {:join, _agent_id, proto} = Protocol.process_message(binary)
+      {:ok, proto, _agent_id} = Decoder.decode_agent_message(binary)
 
       assert proto.available_components != nil
       assert map_size(proto.available_components.components) == 2
@@ -372,7 +291,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
       message = build_agent_to_server(%{agent_disconnect: disconnect})
       binary = encode_with_header(message)
 
-      {:join, _agent_id, proto} = Protocol.process_message(binary)
+      {:ok, proto, _agent_id} = Decoder.decode_agent_message(binary)
 
       assert proto.agent_disconnect != nil
     end
@@ -386,7 +305,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
       message = build_agent_to_server(%{agent_description: empty_desc})
       binary = encode_with_header(message)
 
-      {:join, _agent_id, proto} = Protocol.process_message(binary)
+      {:ok, proto, _agent_id} = Decoder.decode_agent_message(binary)
 
       assert proto.agent_description.identifying_attributes == []
     end
@@ -416,7 +335,7 @@ defmodule OpAMPServer.OpAMP.ProtocolTest do
       message = build_agent_to_server(%{health: root})
       binary = encode_with_header(message)
 
-      {:join, _agent_id, proto} = Protocol.process_message(binary)
+      {:ok, proto, _agent_id} = Decoder.decode_agent_message(binary)
 
       assert proto.health.component_health_map["level1"].component_health_map["level2"].component_health_map[
                "level3"

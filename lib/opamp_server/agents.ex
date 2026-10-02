@@ -6,7 +6,7 @@ defmodule OpAMPServer.Agents do
   import Ecto.Query, warn: false
   alias OpAMPServer.Repo
 
-  alias OpAMPServer.Agents.Agent
+  alias OpAMPServer.Agents.{Agent, Certificate}
 
   def subscribe do
     Phoenix.PubSub.subscribe(OpAMPServer.PubSub, "agents")
@@ -124,6 +124,63 @@ defmodule OpAMPServer.Agents do
   """
   def change_agent(%Agent{} = agent, attrs \\ %{}) do
     Agent.changeset(agent, attrs)
+  end
+
+  @doc """
+  Returns the client certificate (an `Opamp.Proto.TLSCertificate`) issued to the agent, or nil.
+  """
+  def get_certificate(agent_id) do
+    case Repo.get(Certificate, agent_id) do
+      nil -> nil
+      row -> Opamp.Proto.TLSCertificate.decode(row.certificate)
+    end
+  end
+
+  @doc """
+  Stores the client certificate issued to the agent, and replaces any earlier one.
+  """
+  def put_certificate(agent_id, %Opamp.Proto.TLSCertificate{} = certificate) do
+    Repo.insert(
+      %Certificate{id: agent_id, certificate: Opamp.Proto.TLSCertificate.encode(certificate)},
+      on_conflict: {:replace, [:certificate, :updated_at]},
+      conflict_target: :id
+    )
+  end
+
+  @doc """
+  Returns the agent's complete config map, with the body of the object at `key` replaced.
+
+  A remote config replaces the whole config of the agent. For example, the OpAMP Bridge deletes
+  every managed collector that a remote config omits. So the map starts from all objects that the
+  agent reports in its effective config, plus the server's desired config, which wins on a conflict.
+  The edited object keeps its content_type and role.
+  """
+  def config_map_with(%Agent{} = agent, key, body) do
+    effective =
+      for {k, object} <- agent.effective_config.config_map.config_map,
+          not unmanaged_collector?(object.body),
+          into: %{},
+          do: {k, object}
+
+    desired =
+      case agent.desired_remote_config do
+        %{config: %{config_map: config_map}} -> config_map
+        _ -> %{}
+      end
+
+    objects = Map.merge(effective, desired)
+    object = Map.get(objects, key) || %Opamp.Proto.AgentConfigObject{}
+
+    %Opamp.Proto.AgentConfigMap{config_map: Map.put(objects, key, %{object | body: body})}
+  end
+
+  # The OpAMP Bridge also reports collectors that it must not change, and it rejects a remote
+  # config for them. Bodies of other agents are not collector resources, so they stay.
+  defp unmanaged_collector?(body) do
+    case OpAMPServer.CollectorConfig.parse(body) do
+      {:ok, config} -> not OpAMPServer.CollectorConfig.managed?(config)
+      :error -> false
+    end
   end
 
   def generate_desired_remote_config(conf) do

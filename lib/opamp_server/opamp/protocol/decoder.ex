@@ -12,7 +12,8 @@ defmodule OpAMPServer.OpAMP.Protocol.Decoder do
 
   Returns `{:ok, proto, agent_id}` on success or `{:error, reason}` on failure.
   """
-  def decode_agent_message(<<_header::size(8), data::binary>>) do
+  # The spec defines only the header value 0 (one byte as a varint). Other values are malformed.
+  def decode_agent_message(<<0, data::binary>>) do
     try do
       proto = Opamp.Proto.AgentToServer.decode(data)
       agent_id = UUID.load!(proto.instance_uid)

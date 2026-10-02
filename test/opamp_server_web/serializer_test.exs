@@ -4,24 +4,10 @@ defmodule OpAMPServerWeb.SerializerTest do
 
   alias OpAMPServerWeb.Serializer
   alias Phoenix.Socket.{Reply, Message, Broadcast}
-  alias OpAMPServer.OpAMP.ConnectionManager
-
-  setup do
-    # Start a unique ConnectionManager for each test
-    name = :"serializer_test_manager_#{System.unique_integer([:positive])}"
-    {:ok, _pid} = ConnectionManager.start_link(name: name)
-
-    # We need to use the default ConnectionManager name for the serializer
-    # So we'll need to start the global one if not already running
-    case GenServer.whereis(ConnectionManager) do
-      nil ->
-        {:ok, _} = ConnectionManager.start_link()
-
-      _pid ->
-        :ok
-    end
-
-    :ok
+  # Joins once on this connection (the test process), so later messages are heartbeats.
+  defp join!(instance_uid) do
+    message = build_agent_to_server(%{instance_uid: instance_uid})
+    %Message{event: "phx_join"} = Serializer.decode!(encode_with_header(message), opcode: :binary)
   end
 
   describe "fastlane!/1" do
@@ -40,7 +26,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       assert is_binary(binary)
 
       # Verify it's valid protobuf
-      decoded = Opamp.Proto.ServerToAgent.decode(binary)
+      decoded = decode_server_to_agent(binary)
       assert decoded.capabilities == server_to_agent.capabilities
     end
 
@@ -73,7 +59,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       result = Serializer.encode!(reply)
 
       assert {:socket_push, :binary, binary} = result
-      decoded = Opamp.Proto.ServerToAgent.decode(binary)
+      decoded = decode_server_to_agent(binary)
       assert decoded.capabilities == server_to_agent.capabilities
     end
 
@@ -89,7 +75,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       result = Serializer.encode!(reply)
 
       assert {:socket_push, :binary, binary} = result
-      decoded = Opamp.Proto.ServerToAgent.decode(binary)
+      decoded = decode_server_to_agent(binary)
       assert decoded.error_response != nil
       assert decoded.error_response.type == :ServerErrorResponseType_Unavailable
       assert decoded.error_response.error_message == "Connection idled, reconnect requested"
@@ -107,7 +93,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       result = Serializer.encode!(reply)
 
       assert {:socket_push, :binary, binary} = result
-      decoded = Opamp.Proto.ServerToAgent.decode(binary)
+      decoded = decode_server_to_agent(binary)
       assert decoded.error_response.error_message == "Custom error message"
     end
 
@@ -157,7 +143,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       result = Serializer.encode!(message)
 
       assert {:socket_push, :binary, binary} = result
-      decoded = Opamp.Proto.ServerToAgent.decode(binary)
+      decoded = decode_server_to_agent(binary)
       assert decoded.capabilities == server_to_agent.capabilities
     end
 
@@ -208,10 +194,6 @@ defmodule OpAMPServerWeb.SerializerTest do
       message = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: 1})
       binary = encode_with_header(message)
 
-      # Ensure agent is not registered (new connection)
-      ConnectionManager.unregister(agent_id)
-      Process.sleep(10)
-
       result = Serializer.decode!(binary, opcode: :binary)
 
       assert %Message{} = result
@@ -221,21 +203,64 @@ defmodule OpAMPServerWeb.SerializerTest do
       assert result.join_ref == "join"
     end
 
-    test "registers agent on join" do
+    test "joins once per connection" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
-      message = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: 1})
-      binary = encode_with_header(message)
+      join!(instance_uid)
 
-      # Ensure not registered
-      ConnectionManager.unregister(agent_id)
-      Process.sleep(10)
+      binary = encode_with_header(build_agent_to_server(%{instance_uid: instance_uid}))
+      assert %Message{event: "heartbeat"} = Serializer.decode!(binary, opcode: :binary)
 
-      assert ConnectionManager.is_new_connection?(agent_id) == true
+      # A new connection is a new socket process, which has not joined yet.
+      task = Task.async(fn -> Serializer.decode!(binary, opcode: :binary) end)
+      assert %Message{event: "phx_join"} = Task.await(task)
+    end
 
-      Serializer.decode!(binary, opcode: :binary)
+    test "joins again after an unmatched topic reply" do
+      instance_uid = generate_instance_uid()
+      %Message{topic: topic} = join!(instance_uid)
 
-      assert ConnectionManager.connected?(agent_id) == true
+      reply = %Reply{topic: topic, status: :error, payload: %{reason: "unmatched topic"}}
+      Serializer.encode!(reply)
+
+      binary = encode_with_header(build_agent_to_server(%{instance_uid: instance_uid}))
+      assert %Message{event: "phx_join"} = Serializer.decode!(binary, opcode: :binary)
+    end
+
+    test "joins again after the channel exits" do
+      instance_uid = generate_instance_uid()
+      %Message{topic: topic} = join!(instance_uid)
+
+      Serializer.encode!(%Message{topic: topic, event: "phx_error", payload: %{}})
+
+      binary = encode_with_header(build_agent_to_server(%{instance_uid: instance_uid}))
+      assert %Message{event: "phx_join"} = Serializer.decode!(binary, opcode: :binary)
+    end
+  end
+
+  describe "decode!/2 with a malformed binary" do
+    @tag :capture_log
+    test "replies with a BadRequest error" do
+      for binary <- [
+            <<>>,
+            <<0, 255, 255, 255>>,
+            <<0>> <>
+              Opamp.Proto.AgentToServer.encode(%Opamp.Proto.AgentToServer{instance_uid: "short"})
+          ] do
+        message = Serializer.decode!(binary, opcode: :binary)
+
+        # Phoenix answers a message for a topic with no channel with this reply.
+        reply = %Reply{
+          topic: message.topic,
+          status: :error,
+          payload: %{reason: "unmatched topic"}
+        }
+
+        {:socket_push, :binary, encoded} = Serializer.encode!(reply)
+
+        assert %Opamp.Proto.ServerToAgent{
+                 error_response: %{type: :ServerErrorResponseType_BadRequest}
+               } = decode_server_to_agent(encoded)
+      end
     end
   end
 
@@ -246,8 +271,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       message = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: 5})
       binary = encode_with_header(message)
 
-      # Register the agent first
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -255,16 +279,16 @@ defmodule OpAMPServerWeb.SerializerTest do
       assert result.topic == "agents:" <> agent_id
       assert result.event == "heartbeat"
       assert result.ref == 5
-      assert result.join_ref == "beat"
+      # Phoenix 1.8 drops a message whose join_ref is not the join_ref of the join.
+      assert result.join_ref == join!(generate_instance_uid()).join_ref
     end
 
     test "preserves sequence number as ref" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
       message = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: 42})
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -275,11 +299,10 @@ defmodule OpAMPServerWeb.SerializerTest do
   describe "decode!/2 preserves proto payload" do
     test "preserves agent description in payload" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
       message = build_agent_to_server_with_description(%{instance_uid: instance_uid})
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -289,11 +312,10 @@ defmodule OpAMPServerWeb.SerializerTest do
 
     test "preserves health in payload" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
       message = build_agent_to_server_with_health(%{instance_uid: instance_uid})
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -303,11 +325,10 @@ defmodule OpAMPServerWeb.SerializerTest do
 
     test "preserves effective config in payload" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
       message = build_agent_to_server_with_config(%{instance_uid: instance_uid})
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -316,12 +337,11 @@ defmodule OpAMPServerWeb.SerializerTest do
 
     test "preserves capabilities in payload" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
       caps = all_agent_capabilities()
       message = build_agent_to_server(%{instance_uid: instance_uid, capabilities: caps})
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -330,7 +350,6 @@ defmodule OpAMPServerWeb.SerializerTest do
 
     test "preserves remote config status in payload" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
 
       status =
         build_remote_config_status(%{
@@ -341,7 +360,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       message = build_agent_to_server(%{instance_uid: instance_uid, remote_config_status: status})
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -351,7 +370,6 @@ defmodule OpAMPServerWeb.SerializerTest do
 
     test "preserves available components in payload" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
       components = build_available_components()
 
       message =
@@ -359,7 +377,7 @@ defmodule OpAMPServerWeb.SerializerTest do
 
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -385,7 +403,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       }
 
       {:socket_push, :binary, binary} = Serializer.encode!(message)
-      decoded = Opamp.Proto.ServerToAgent.decode(binary)
+      decoded = decode_server_to_agent(binary)
 
       assert decoded.capabilities == server_to_agent.capabilities
       assert decoded.flags == 1
@@ -402,7 +420,7 @@ defmodule OpAMPServerWeb.SerializerTest do
       }
 
       {:socket_push, :binary, binary} = Serializer.encode!(reply)
-      decoded = Opamp.Proto.ServerToAgent.decode(binary)
+      decoded = decode_server_to_agent(binary)
 
       assert decoded.error_response.error_message == "test error"
     end
@@ -413,13 +431,8 @@ defmodule OpAMPServerWeb.SerializerTest do
       # Note: The current implementation requires sequence_num > 0 for heartbeat
       # This tests the boundary condition
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
       message = build_agent_to_server(%{instance_uid: instance_uid, sequence_num: 0})
       binary = encode_with_header(message)
-
-      # Unregister first to ensure it's treated as new
-      ConnectionManager.unregister(agent_id)
-      Process.sleep(10)
 
       result = Serializer.decode!(binary, opcode: :binary)
 
@@ -429,7 +442,6 @@ defmodule OpAMPServerWeb.SerializerTest do
 
     test "handles very large sequence numbers" do
       instance_uid = generate_instance_uid()
-      agent_id = Ecto.UUID.load!(instance_uid)
 
       message =
         build_agent_to_server(%{
@@ -439,7 +451,7 @@ defmodule OpAMPServerWeb.SerializerTest do
 
       binary = encode_with_header(message)
 
-      ConnectionManager.register(agent_id)
+      join!(instance_uid)
 
       result = Serializer.decode!(binary, opcode: :binary)
 

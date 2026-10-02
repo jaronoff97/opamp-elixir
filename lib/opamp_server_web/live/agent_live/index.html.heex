@@ -1,47 +1,88 @@
-<.header>
-  Listing Agent
-</.header>
+<Layouts.app flash={@flash} current={:agents}>
+  <.header>
+    Agents
+    <:subtitle>
+      {map_size(@agents)} connected. Select an agent to see its config and pipelines.
+    </:subtitle>
+    <:actions>
+      <form id="agent-filter" phx-change="filter" phx-submit="filter" role="search">
+        <label class="input input-sm w-64">
+          <.icon name="hero-magnifying-glass" class="size-4 opacity-50" />
+          <input
+            type="search"
+            name="query"
+            value={@query}
+            placeholder="Filter by name, host or instance"
+            aria-label="Filter agents"
+            phx-debounce="150"
+          />
+        </label>
+      </form>
+    </:actions>
+  </.header>
 
-<.table
-  id="agent"
-  rows={@streams.agent_collection}
-  row_click={fn {_id, agent} -> JS.navigate(~p"/#{agent}") end}
->
-  <:col :let={{_id, agent}} label="Host Name">
-    <%= find_description_field(agent.description, "host.name") %>
-  </:col>
-  <:col :let={{_id, agent}} label="Instance"><%= agent.id %></:col>
-  <:col :let={{_id, agent}} label="Last Hearbeat">
-    <%= if Map.has_key?(agent, :component_health) && agent.component_health != nil do %>
-      <%= render_time(agent.component_health.status_time_unix_nano) %>
-    <% end %>
-  </:col>
-  <:col :let={{_id, agent}} label="Number of Collectors">
-    <%= map_size(agent.effective_config.config_map.config_map) %>
-  </:col>
-  <:action :let={{_id, agent}}>
-    <div class="sr-only">
-      <.link navigate={~p"/#{agent}"}>Show</.link>
-    </div>
-    <.link patch={~p"/#{agent}/edit"}>Edit</.link>
-  </:action>
-  <:action :let={{id, agent}}>
-    <.link
-      phx-click={JS.push("delete", value: %{id: agent.id}) |> hide("##{id}")}
-      data-confirm="Are you sure?"
+  <% agents = filter(@agents, @query) %>
+  <div class="card card-border mt-6 bg-base-100">
+    <.empty_state :if={@agents == %{}} icon="hero-server-stack" title="No agents are connected">
+      Agents appear here when they connect to this server over OpAMP.
+    </.empty_state>
+    <.empty_state
+      :if={@agents != %{} and agents == []}
+      icon="hero-magnifying-glass"
+      title="No agents match the filter"
     >
-      Delete
-    </.link>
-  </:action>
-</.table>
+      Try a part of the name, the host or the instance uid.
+    </.empty_state>
 
-<.modal :if={@live_action in [:new, :edit]} id="agent-modal" show on_cancel={JS.patch(~p"/")}>
-  <.live_component
-    module={OpAMPServerWeb.AgentLive.FormComponent}
-    id={@agent.id || :new}
-    title={@page_title}
-    action={@live_action}
-    agent={@agent}
-    patch={~p"/"}
-  />
-</.modal>
+    <div :if={agents != []} class="overflow-x-auto">
+      <table class="table" id="agents">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Status</th>
+            <th>Host</th>
+            <th>Version</th>
+            <th class="text-right">Configs</th>
+            <th>Remote config</th>
+            <th>Last seen</th>
+            <th><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            :for={agent <- agents}
+            id={"agent-#{agent.id}"}
+            class="hover:bg-base-200/60 cursor-pointer"
+            phx-click={JS.navigate(~p"/agents/#{agent.id}")}
+          >
+            <td>
+              <.link navigate={~p"/agents/#{agent.id}"} class="font-medium hover:underline">
+                {AgentView.name(agent)}
+              </.link>
+              <div class="font-mono text-xs text-base-content/50">{agent.id}</div>
+            </td>
+            <td><.status_badge status={AgentView.status(agent)} /></td>
+            <td>{AgentView.attribute(agent, "host.name") || "—"}</td>
+            <td>{AgentView.attribute(agent, "service.version") || "—"}</td>
+            <td class="text-right tabular-nums">{collector_count(agent)}</td>
+            <td><.status_badge status={elem(AgentView.remote_config(agent), 0)} /></td>
+            <td class="whitespace-nowrap text-base-content/70">
+              {AgentView.ago(agent.updated_at, @now)}
+            </td>
+            <td class="text-right">
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs text-error"
+                phx-click={JS.push("delete", value: %{id: agent.id})}
+                data-confirm="Forget this agent? It comes back when it reconnects."
+                aria-label={"Delete #{AgentView.name(agent)}"}
+              >
+                <.icon name="hero-trash" class="size-4" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</Layouts.app>
