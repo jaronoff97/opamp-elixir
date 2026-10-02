@@ -22,6 +22,10 @@ the server on Elixir 1.20.4, Erlang/OTP 29.1.1, Phoenix 1.8.15 and LiveView 1.2.
 Your kubeconfig can contain other clusters. To keep every command on the local cluster, each
 command in this runbook sets `--context orbstack` or `--kube-context orbstack`.
 
+This runbook runs the server on the host. To run the server in the cluster instead, follow
+`deploy/kubernetes/README.md`, and set the bridge endpoint in `bridge.yaml` to
+`ws://opamp-server.opamp.svc:4320/v1/opamp`.
+
 ## 1. Start OrbStack Kubernetes
 
 ```sh
