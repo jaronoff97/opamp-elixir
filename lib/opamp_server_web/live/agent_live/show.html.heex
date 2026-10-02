@@ -1,94 +1,291 @@
-<div class="flex gap-6">
-  <div class="flex-1">
-    <.header>
-      Agent <%= @agent.id %>
-      <:subtitle>
-        Last Heartbeat: <%= render_time(@agent.component_health.status_time_unix_nano) %> UTC
-        <br /> Healthy? <%= @agent.component_health.healthy %>
-        <br /> Service Name: <%= find_description_field(@agent.description, "service.name") %>
-        <br /> Host Name: <%= find_description_field(@agent.description, "host.name") %>
-        <br /> OS Family: <%= find_description_field(@agent.description, "os.family") %>
-      </:subtitle>
-    </.header>
-
-    <.table
-      id="instance"
-      rows={@map_keys}
-      row_click={fn collector -> JS.push("select", value: %{collector: collector}) end}
-    >
-      <:col :let={collector} label="Modifiable?"><%= managed?(@agent, collector) %></:col>
-      <:col :let={collector} label="Collector Name"><%= config_key_label(collector) %></:col>
-      <:col :let={collector} label="Replicas">
-        <%= get_effective_config_field(
-          @agent.component_health.component_health_map[collector],
-          :status
-        ) %>
-      </:col>
-      <:col :let={collector} label="Start Time">
-        <%= render_time(
-          get_effective_config_field(
-            @agent.component_health.component_health_map[collector],
-            :start_time_unix_nano
-          )
-        ) %> UTC
-      </:col>
-      <:col :let={collector} label="Last Heartbeat">
-        <%= render_time(
-          get_effective_config_field(
-            @agent.component_health.component_health_map[collector],
-            :status_time_unix_nano
-          )
-        ) %> UTC
-      </:col>
-    </.table>
-
-    <%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
-      <.table
-        id="pods"
-        rows={pods(@agent, @collector)}
-        row_click={fn {pod, _health} -> JS.push("select", value: %{pod: pod}) end}
-      >
-        <:col :let={{pod, _health}} label="Pod Name"><%= pod %></:col>
-        <:col :let={{_pod, health}} label="Status"><%= health.status %></:col>
-        <:col :let={{_pod, health}} label="Start Time">
-          <%= render_time(health.start_time_unix_nano) %> UTC
-        </:col>
-        <:col :let={{_pod, health}} label="Last Heartbeat">
-          <%= render_time(health.status_time_unix_nano) %> UTC
-        </:col>
-      </.table>
-    <% end %>
-
-    <.back navigate={~p"/"}>Back to agent</.back>
+<Layouts.app flash={@flash} current={:agents}>
+  <div class="breadcrumbs text-sm">
+    <ul>
+      <li><.link navigate={~p"/agents"}>Agents</.link></li>
+      <li>{AgentView.name(@agent)}</li>
+    </ul>
   </div>
 
-  <%= if Map.has_key?(@agent.effective_config.config_map.config_map, @collector) do %>
-    <div class="w-1/2 border-l border-zinc-200 pl-6 flex flex-col max-h-[80vh]">
-      <h2 class="text-lg font-semibold text-zinc-800 mb-4 flex-shrink-0">
-        Configuration: <%= config_key_label(@collector) %>
-      </h2>
-      <div
-        id="editor"
-        phx-update="ignore"
-        class="border border-zinc-300 rounded-md overflow-auto flex-1 min-h-0 mb-4"
-      >
-      </div>
-      <.form
-        :let={f}
-        for={@changeset}
-        phx-change="validate"
-        phx-submit="save"
-        class="flex-shrink-0"
-      >
-        <%= textarea(f, :effective_config,
-          phx_hook: "EditorForm",
-          value: @agent.effective_config.config_map.config_map[@collector].body,
-          style: "display: none;"
-        ) %>
-        <.button type="submit" class="w-full">
-          Submit Configuration
-        </.button>
-      </.form>
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="min-w-0">
+      <h1 class="flex items-center gap-3 text-xl font-semibold">
+        <.status_dot status={AgentView.status(@agent)} />
+        <span class="truncate">{AgentView.name(@agent)}</span>
+        <span
+          :if={AgentView.kind(@agent) == :bridge}
+          class="badge badge-sm badge-soft badge-primary"
+        >
+          OpAMP Bridge
+        </span>
+      </h1>
+      <p class="mt-1 font-mono text-xs text-base-content/60">{@agent.id}</p>
     </div>
-  <% end %>
-</div>
+    <div class="flex flex-wrap items-center gap-2 text-sm text-base-content/60">
+      <.status_badge status={AgentView.status(@agent)} />
+      <.status_badge status={elem(AgentView.remote_config(@agent), 0)} />
+      <span>seen {AgentView.ago(@agent.updated_at, @now)}</span>
+    </div>
+  </div>
+
+  <div role="tablist" class="tabs tabs-border mt-4" aria-label="Agent">
+    <.link
+      :for={{action, label} <- @tabs}
+      patch={tab_path(@agent, action, @object_key)}
+      role="tab"
+      id={"tab-#{action}"}
+      class={["tab", @live_action == action && "tab-active"]}
+      aria-selected={to_string(@live_action == action)}
+    >
+      {label}
+    </.link>
+  </div>
+
+  <div class="mt-6">
+    <%!-- Overview --%>
+    <div :if={@live_action == :overview} class="space-y-8">
+      <div class="grid gap-4 lg:grid-cols-3">
+        <.card title="Health" id="health">
+          <div><.status_badge status={AgentView.status(@agent)} /></div>
+          <p :if={AgentView.last_error(@agent)} class="text-sm text-error">
+            {AgentView.last_error(@agent)}
+          </p>
+          <.kv_list items={[
+            {"started",
+             render_time(@agent.component_health && @agent.component_health.start_time_unix_nano)},
+            {"last report",
+             render_time(@agent.component_health && @agent.component_health.status_time_unix_nano)},
+            {"last seen", AgentView.ago(@agent.updated_at, @now)}
+          ]} />
+        </.card>
+        <.card title="Identity" id="identity">
+          <.kv_list items={AgentView.attributes(@agent, :identifying)} />
+        </.card>
+        <.card title="Details" id="details">
+          <.kv_list items={AgentView.attributes(@agent, :non_identifying)} />
+        </.card>
+        <.card title="Capabilities" id="capabilities" class="lg:col-span-3">
+          <p :if={AgentView.capabilities(@agent) == []} class="text-sm text-base-content/60">
+            The agent has not reported its capabilities.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <span
+              :for={capability <- AgentView.capabilities(@agent)}
+              class="badge badge-outline badge-sm"
+            >
+              {capability}
+            </span>
+          </div>
+        </.card>
+      </div>
+
+      <section>
+        <h2 class="mb-3 text-sm font-semibold">Config objects</h2>
+        <div :if={@objects == []} class="card card-border bg-base-100">
+          <.empty_state icon="hero-document-text" title="No config reported">
+            The agent reports its config with the ReportsEffectiveConfig capability.
+          </.empty_state>
+        </div>
+        <div class="grid gap-4 lg:grid-cols-2">
+          <.card :for={object <- @objects} id={"object-#{object.key}"}>
+            <div class="flex flex-wrap items-center gap-2">
+              <.icon
+                name={if object.resource?, do: "hero-cube", else: "hero-document-text"}
+                class="size-4 text-accent"
+              />
+              <h3 class="truncate font-medium">{config_key_label(object.key)}</h3>
+              <span class={[
+                "badge badge-xs badge-soft",
+                if(object.managed?, do: "badge-success", else: "badge-ghost")
+              ]}>
+                {if object.managed?, do: "managed", else: "read-only"}
+              </span>
+              <div class="ml-auto flex gap-1">
+                <.link patch={tab_path(@agent, :config, object.key)} class="btn btn-ghost btn-xs">
+                  Config
+                </.link>
+                <.link
+                  patch={tab_path(@agent, :pipeline, object.key)}
+                  class="btn btn-ghost btn-xs"
+                >
+                  Pipeline
+                </.link>
+              </div>
+            </div>
+
+            <p :if={object.health == nil} class="text-sm text-base-content/60">
+              No health reported yet.
+            </p>
+            <div :if={object.health} class="text-sm">
+              Status: <span class="font-medium">{object.health.status}</span>
+            </div>
+            <div :if={pods(object.health) != []} class="overflow-x-auto">
+              <table class="table table-sm" id={"pods-#{object.key}"}>
+                <thead>
+                  <tr>
+                    <th>Pod</th>
+                    <th>Status</th>
+                    <th>Started</th>
+                    <th>Last report</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr :for={{pod, health} <- pods(object.health)}>
+                    <td class="font-mono text-xs break-all">{pod}</td>
+                    <td>
+                      <span class={[
+                        "badge badge-xs badge-soft",
+                        if(health.healthy, do: "badge-success", else: "badge-error")
+                      ]}>
+                        {health.status}
+                      </span>
+                    </td>
+                    <td class="whitespace-nowrap text-xs">
+                      {short_time(health.start_time_unix_nano)}
+                    </td>
+                    <td class="whitespace-nowrap text-xs">
+                      {short_time(health.status_time_unix_nano)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </.card>
+        </div>
+      </section>
+    </div>
+
+    <%!-- Config --%>
+    <div :if={@live_action == :config}>
+      <div :if={@objects == []} class="card card-border bg-base-100">
+        <.empty_state icon="hero-document-text" title="No config reported">
+          The agent reports its config with the ReportsEffectiveConfig capability.
+        </.empty_state>
+      </div>
+      <div :if={@objects != []} class="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <.object_menu objects={@objects} selected={@object_key} agent={@agent} action={:config} />
+        <% object = selected_object(assigns) %>
+        <% {remote, message} = AgentView.remote_config(@agent) %>
+        <.card id="config-editor">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="font-medium">{config_key_label(object.key)}</h2>
+            <span :if={object.object.content_type != ""} class="badge badge-xs badge-ghost">
+              {object.object.content_type}
+            </span>
+            <.status_badge status={remote} class="ml-auto" />
+          </div>
+          <div :if={remote == :failed} role="alert" class="alert alert-error alert-soft text-sm">
+            <.icon name="hero-exclamation-circle" class="size-5" /><span>{message}</span>
+          </div>
+          <div :if={not object.managed?} role="note" class="alert alert-soft text-sm">
+            <.icon name="hero-lock-closed" class="size-5" />
+            <span>
+              This collector is read-only. The OpAMP Bridge changes only collectors with the
+              <code>opentelemetry.io/opamp-managed</code>
+              label.
+            </span>
+          </div>
+          <div
+            id={"editor-#{object.key}"}
+            phx-update="ignore"
+            class="h-[60vh] overflow-hidden rounded-field border border-base-300"
+          >
+          </div>
+          <.form
+            for={to_form(%{}, as: :config)}
+            id="config-form"
+            phx-submit="save"
+            class="flex justify-end"
+          >
+            <textarea
+              id={"config-body-#{object.key}"}
+              name="config[body]"
+              phx-hook="ConfigEditor"
+              data-editor={"editor-#{object.key}"}
+              class="hidden"
+            >{object.object.body}</textarea>
+            <.button variant="primary" disabled={not object.managed?}>
+              <.icon name="hero-paper-airplane" class="size-4" /> Send to agent
+            </.button>
+          </.form>
+        </.card>
+      </div>
+    </div>
+
+    <%!-- Pipeline --%>
+    <div :if={@live_action == :pipeline}>
+      <div :if={@objects == []} class="card card-border bg-base-100">
+        <.empty_state icon="hero-arrows-right-left" title="No config reported">
+          The agent reports its config with the ReportsEffectiveConfig capability.
+        </.empty_state>
+      </div>
+      <div :if={@objects != []} class="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <.object_menu objects={@objects} selected={@object_key} agent={@agent} action={:pipeline} />
+        <div class="flex min-w-0 flex-col gap-3">
+          <.legend />
+          <.graph
+            id={"pipeline-#{@object_key}"}
+            graph={@pipeline}
+            selected={@component}
+            on_select="select_component"
+            class="h-[60vh]"
+          >
+            <:node :let={node}><.pipeline_node node={node} /></:node>
+            <:empty>This config has no pipelines.</:empty>
+          </.graph>
+          <.card
+            :if={@component}
+            id="component-config"
+            title={Graph.node(@pipeline, @component).data.name}
+          >
+            <pre class="overflow-x-auto rounded-field bg-base-200 p-3 text-xs"><code>{component_config(selected_object(assigns), Graph.node(@pipeline, @component))}</code></pre>
+          </.card>
+        </div>
+      </div>
+    </div>
+
+    <%!-- Connection --%>
+    <div :if={@live_action == :connection} class="grid gap-4 lg:grid-cols-2">
+      <% offer = ConnectionSettings.offer(@agent.capabilities || 0, @certificate) %>
+      <.card title="Connection settings" id="connection-settings">
+        <p :if={offer == nil} class="text-sm text-base-content/60">
+          The server offers nothing to this agent. Either no connection settings are configured
+          (see Settings), or the agent does not have the capabilities to accept them.
+        </p>
+        <.kv_list :if={offer} items={AgentView.offer_parts(offer)} />
+        <p :if={offer} class="font-mono text-xs text-base-content/50">
+          hash {offer.hash |> Base.encode16(case: :lower) |> String.slice(0, 16)}
+        </p>
+      </.card>
+      <% summary = @certificate && AgentView.certificate_summary(@certificate.cert) %>
+      <.card title="Client certificate" id="client-certificate">
+        <p :if={summary == nil} class="text-sm text-base-content/60">
+          The server has not issued a certificate to this agent. An agent requests one with a
+          CSR, when the server has a CA.
+        </p>
+        <.kv_list
+          :if={summary}
+          items={[
+            {"subject", summary.subject},
+            {"issuer", summary.issuer},
+            {"valid from", Calendar.strftime(summary.not_before, "%b %-d, %Y")},
+            {"valid until", Calendar.strftime(summary.not_after, "%b %-d, %Y")}
+          ]}
+        />
+      </.card>
+      <.card title="Connection capabilities" id="connection-capabilities" class="lg:col-span-2">
+        <ul class="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <li
+            :for={{name, reported?} <- connection_capabilities(@agent)}
+            class="flex items-center gap-2"
+          >
+            <.icon
+              name={if reported?, do: "hero-check-circle", else: "hero-minus-circle"}
+              class={["size-4", if(reported?, do: "text-success", else: "text-base-content/30")]}
+            />
+            <span class={[not reported? && "text-base-content/50"]}>{name}</span>
+          </li>
+        </ul>
+      </.card>
+    </div>
+  </div>
+</Layouts.app>

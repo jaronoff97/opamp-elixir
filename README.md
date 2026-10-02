@@ -1,11 +1,21 @@
 # OpAMPServer
 
+This app needs the Elixir and Erlang versions in `.tool-versions` (Elixir 1.20, Erlang/OTP 29),
+Node.js for the config editor, and PostgreSQL.
+
 To start your Phoenix server:
 
+  * Run `npm install --prefix assets` to install the config editor (CodeMirror)
   * Run `mix setup` to install and setup dependencies
   * Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
 
-Now you can visit [`localhost:4320`](http://localhost:4320), the default OpAMP port from your browser.
+Now you can visit [`localhost:4320`](http://localhost:4320), the default OpAMP port, from your browser:
+
+  * **Fleet** (`/`): a graph of this server, every connected agent, and the collectors that each
+    OpAMP Bridge manages.
+  * **Agents** (`/agents`): the list of agents. Each agent page (`/agents/:id`) has an overview,
+    a config editor, a graph of the collector pipelines, and its connection settings.
+  * **Settings** (`/settings`): this server's configuration.
 
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 

@@ -1,251 +1,290 @@
 defmodule OpAMPServerWeb.AgentLive.Show do
+  @moduledoc """
+  One agent, in four tabs: overview, config (edit and send a remote config), pipeline
+  (a graph of the selected collector config) and connection (connection settings and
+  the client certificate). The `object` query parameter selects a config object.
+  """
   use OpAMPServerWeb, :live_view
-  import Phoenix.HTML.Form
 
-  alias OpAMPServer.Agents
+  alias OpAMPServer.{Agents, CollectorConfig}
+  alias OpAMPServer.OpAMP.ConnectionSettings
+  alias OpAMPServerWeb.{AgentView, Graph}
+  alias OpAMPServerWeb.Graph.Pipeline
+
+  # Refreshes the "last seen" time.
+  @tick :timer.seconds(10)
+
+  @tabs [overview: "Overview", config: "Config", pipeline: "Pipeline", connection: "Connection"]
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     case Agents.get_agent(id) do
       nil ->
-        {:ok, redirect(socket, to: ~p"/")}
+        {:ok,
+         socket |> put_flash(:error, "That agent is not connected.") |> redirect(to: ~p"/agents")}
 
       agent ->
-        if connected?(socket), do: OpAMPServer.Agents.subscribe_to_agent(id)
+        if connected?(socket) do
+          Agents.subscribe_to_agent(id)
+          :timer.send_interval(@tick, :tick)
+        end
 
         {:ok,
          socket
-         |> assign_initial_changeset(agent)
-         |> assign(:agent_id, id)}
+         |> assign(
+           tabs: @tabs,
+           now: DateTime.utc_now(),
+           object_key: nil,
+           component: nil,
+           certificate: Agents.get_certificate(id)
+         )
+         |> assign_agent(agent)}
     end
   end
 
   @impl true
-  def handle_params(%{"id" => id}, _, socket) do
-    agent = id |> Agents.get_agent!() |> with_defaults()
-    map_keys = get_config_map_keys(agent)
+  def handle_params(params, _uri, socket) do
+    objects = socket.assigns.objects
+
+    key =
+      if Enum.any?(objects, &(&1.key == params["object"])),
+        do: params["object"],
+        else: default_object(objects, socket.assigns.live_action)
 
     {:noreply,
      socket
-     |> assign(:page_title, "Showing Agent")
-     |> assign(:agent, agent)
-     |> assign(map_keys: map_keys)}
+     |> assign(
+       page_title:
+         "#{AgentView.name(socket.assigns.agent)} · #{@tabs[socket.assigns.live_action]}",
+       object_key: key,
+       component: nil
+     )
+     |> assign_pipeline()}
   end
 
-  defp get_config_map_keys(agent), do: Map.keys(agent.effective_config.config_map.config_map)
+  # The pipeline tab opens the first object that has pipelines.
+  defp default_object(objects, :pipeline) do
+    Enum.find_value(objects, fn object ->
+      object.config && CollectorConfig.pipelines(object.config) != [] && object.key
+    end) || default_object(objects, :config)
+  end
 
-  # An agent reports health and config only with the matching capabilities, so either can be
-  # missing. Empty defaults let the template read them without checks.
-  defp with_defaults(agent) do
-    config_map =
-      case agent.effective_config do
-        %{config_map: %Opamp.Proto.AgentConfigMap{} = config_map} -> config_map
-        _ -> %Opamp.Proto.AgentConfigMap{}
+  defp default_object([first | _], _action), do: first.key
+  defp default_object([], _action), do: nil
+
+  defp assign_agent(socket, agent) do
+    objects = AgentView.config_objects(agent)
+    key = socket.assigns.object_key
+
+    # The selected object can go away when the agent reports a new config.
+    key =
+      if Enum.any?(objects, &(&1.key == key)),
+        do: key,
+        else: default_object(objects, socket.assigns[:live_action])
+
+    assign(socket,
+      agent: agent,
+      objects: objects,
+      object_key: key,
+      config_hash:
+        agent.remote_config_status && agent.remote_config_status.last_remote_config_hash
+    )
+  end
+
+  defp assign_pipeline(socket) do
+    pipeline =
+      case selected_object(socket.assigns) do
+        %{config: %CollectorConfig{} = config} -> Pipeline.build(config)
+        _ -> Graph.new()
       end
 
-    %{
-      agent
-      | component_health: agent.component_health || %Opamp.Proto.ComponentHealth{},
-        effective_config: %Opamp.Proto.EffectiveConfig{config_map: config_map}
-    }
+    assign(socket, :pipeline, pipeline)
   end
 
-  @impl true
-  def handle_info({:agent_created, _agent}, socket) do
-    {:noreply, socket}
-  end
+  defp selected_object(%{objects: objects, object_key: key}),
+    do: Enum.find(objects, &(&1.key == key))
 
   @impl true
   def handle_info({:agent_updated, agent}, socket) do
-    {:noreply,
-     socket
-     |> set_flash(agent)
-     |> update_agent_data(agent)}
+    {:noreply, socket |> set_flash(agent) |> assign_agent(agent) |> assign_pipeline()}
   end
 
-  @impl true
-  def handle_info({:agent_superseded, _pid}, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
   def handle_info({:agent_deleted, _agent}, socket) do
-    {:noreply, redirect(socket, to: ~p"/")}
-  end
-
-  @impl true
-  def handle_event("validate", %{"agent" => _changed}, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("select", %{"collector" => collector}, socket) do
-    if socket.assigns.collector == collector do
-      {:noreply,
-       socket
-       |> assign(:collector, nil)
-       |> push_event("reset", %{})}
-    else
-      {:noreply, assign(socket, :collector, collector)}
-    end
-  end
-
-  @impl true
-  def handle_event("select", %{"pod" => pod}, socket) do
     {:noreply,
-     socket
-     |> put_flash(:info, "clicked #{pod}")}
+     socket |> put_flash(:info, "The agent disconnected.") |> push_navigate(to: ~p"/agents")}
   end
 
+  def handle_info({event, _}, socket) when event in [:agent_created, :agent_superseded],
+    do: {:noreply, socket}
+
+  def handle_info(:tick, socket), do: {:noreply, assign(socket, :now, DateTime.utc_now())}
+
   @impl true
-  def handle_event("save", %{"agent" => %{"effective_config" => new_config}}, socket) do
-    agent = Agents.get_agent(socket.assigns.agent_id)
+  def handle_event("select_component", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :component, if(socket.assigns.component == id, do: nil, else: id))}
+  end
+
+  def handle_event("save", %{"config" => %{"body" => body}}, socket) do
+    agent = Agents.get_agent(socket.assigns.agent.id)
 
     remote_config =
       agent
-      |> Agents.config_map_with(socket.assigns.collector, new_config)
+      |> Agents.config_map_with(socket.assigns.object_key, body)
       |> Agents.generate_desired_remote_config()
 
     case Agents.update_agent(agent, %{desired_remote_config: remote_config}) do
-      {:ok, _agent} ->
-        {:noreply,
-         socket
-         |> assign(:collector, nil)
-         |> push_event("reset", %{})
-         |> put_flash(:info, "Updated. Running…")}
-
-      {:error, _error} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "failed!")}
+      {:ok, _agent} -> {:noreply, put_flash(socket, :info, "Sent the new config to the agent.")}
+      {:error, _changeset} -> {:noreply, put_flash(socket, :error, "Could not save the config.")}
     end
   end
 
+  # A flash for each new remote config status that the agent reports.
   defp set_flash(socket, %{remote_config_status: nil}), do: socket
 
-  defp set_flash(socket, agent) do
-    if agent.remote_config_status.last_remote_config_hash != socket.assigns.config_hash do
-      case agent.remote_config_status.status do
-        :RemoteConfigStatuses_UNSET ->
-          put_flash(socket, :info, agent.remote_config_status.error_message)
-
+  defp set_flash(socket, %{remote_config_status: status}) do
+    if status.last_remote_config_hash == socket.assigns.config_hash do
+      socket
+    else
+      case status.status do
         :RemoteConfigStatuses_APPLIED ->
-          socket
-          |> put_flash(:info, "Success applying!")
+          put_flash(socket, :info, "The agent applied the config.")
 
         :RemoteConfigStatuses_APPLYING ->
-          put_flash(socket, :info, "applying...")
+          put_flash(socket, :info, "The agent is applying the config…")
 
         :RemoteConfigStatuses_FAILED ->
-          put_flash(socket, :error, agent.remote_config_status.error_message)
+          put_flash(socket, :error, status.error_message)
+
+        _ ->
+          socket
       end
-    else
-      socket
     end
   end
 
-  defp update_agent_data(socket, agent) do
-    # Update agent data without resetting collector selection
-    agent = with_defaults(agent)
-    changeset = Agents.Agent.changeset(agent, %{})
+  defp tab_path(agent, :overview, _key), do: ~p"/agents/#{agent.id}"
+  defp tab_path(agent, action, nil), do: "/agents/#{agent.id}/#{action}"
 
-    config_hash =
-      if agent.remote_config_status,
-        do: agent.remote_config_status.last_remote_config_hash,
-        else: nil
-
-    socket
-    |> assign(changeset: changeset)
-    |> assign(:agent, agent)
-    |> assign(map_keys: get_config_map_keys(agent))
-    |> assign(config_hash: config_hash)
-    |> assign(form: Phoenix.Component.to_form(changeset))
-  end
-
-  defp assign_initial_changeset(socket, agent) do
-    # Assign a changeset to the most recent snippet, if one exists, or a new snippet.
-    agent = with_defaults(agent)
-    changeset = Agents.Agent.changeset(agent, %{})
-
-    config_hash =
-      if agent.remote_config_status,
-        do: agent.remote_config_status.last_remote_config_hash,
-        else: nil
-
-    socket
-    |> assign(:collector, nil)
-    |> push_event("reset", %{})
-    |> assign(changeset: changeset)
-    |> assign(:agent, agent)
-    |> assign(config_hash: config_hash)
-    |> assign(form: Phoenix.Component.to_form(changeset))
-  end
+  defp tab_path(agent, action, key),
+    do: "/agents/#{agent.id}/#{action}?" <> URI.encode_query(object: key)
 
   # The spec allows "" as a config key, for agents with a single config object.
   def config_key_label(""), do: "(default)"
   def config_key_label(key), do: key
 
   # 0 is the protobuf default: the agent has not reported the time.
-  def render_time(time) when time in [nil, 0], do: ""
+  def render_time(time) when time in [nil, 0], do: "—"
 
-  def render_time(last_heartbeat) do
-    DateTime.from_unix!(last_heartbeat, :nanosecond)
-    |> Calendar.strftime("%B %-d, %Y %I:%M:%S %p")
+  def render_time(nanos) do
+    nanos |> DateTime.from_unix!(:nanosecond) |> Calendar.strftime("%b %-d, %Y %H:%M:%S UTC")
   end
 
-  def managed?(nil, _collector), do: "❓"
+  # A compact time for tables, without the year.
+  def short_time(time) when time in [nil, 0], do: "—"
 
-  def managed?(agent = %{}, collector) do
-    agent.effective_config.config_map.config_map[collector]
-    |> get_effective_config_field(:body)
-    |> contains_managed
+  def short_time(nanos) do
+    nanos |> DateTime.from_unix!(:nanosecond) |> Calendar.strftime("%b %-d %H:%M")
   end
 
-  # Read the pods from the current health on each render: a rollout replaces pods while the
-  # page is open. A collector has no health entry until the agent reports one.
-  def pods(agent, collector) do
-    case agent.component_health do
-      %{component_health_map: %{^collector => %{component_health_map: pods}}} -> Enum.sort(pods)
-      _ -> []
+  def pods(%{component_health_map: pods}), do: Enum.sort(pods)
+  def pods(_health), do: []
+
+  # The config of one pipeline component, as JSON.
+  defp component_config(object, %Graph.Node{data: %{kind: kind, name: name}}) do
+    section =
+      case kind do
+        :receiver -> "receivers"
+        :processor -> "processors"
+        :exporter -> "exporters"
+        :connector -> "connectors"
+      end
+
+    case object.config.config[section] do
+      %{^name => config} -> Jason.encode!(config || %{}, pretty: true)
+      _ -> "{}"
     end
   end
 
-  defp contains_managed(nil), do: "❓"
+  @kind_style %{
+    receiver: {"Receiver", "border-l-info", "bg-info"},
+    processor: {"Processor", "border-l-accent", "bg-accent"},
+    exporter: {"Exporter", "border-l-success", "bg-success"},
+    connector: {"Connector", "border-l-secondary", "bg-secondary"}
+  }
 
-  defp contains_managed(body) do
-    case String.contains?(body, "opentelemetry.io/opamp-managed") do
-      true -> "✅"
-      _ -> "🚫"
-    end
+  @signal_style %{"traces" => "bg-info", "metrics" => "bg-accent", "logs" => "bg-success"}
+
+  attr :node, Graph.Node, required: true
+
+  defp pipeline_node(assigns) do
+    {label, border, _dot} = @kind_style[assigns.node.data.kind]
+    assigns = assign(assigns, label: label, border: border, signal_style: @signal_style)
+
+    ~H"""
+    <div class={[
+      "flex size-full flex-col justify-center gap-1 rounded-box border border-base-300 border-l-4 bg-base-100 px-3 shadow-xs",
+      @border
+    ]}>
+      <span class="truncate font-mono text-sm">{@node.data.name}</span>
+      <span class="flex items-center gap-2 text-xs text-base-content/60">
+        {@label}
+        <span :for={signal <- @node.data.signals} class="flex items-center gap-1">
+          <span class={["size-1.5 rounded-full", @signal_style[signal] || "bg-base-content/40"]} />{signal}
+        </span>
+      </span>
+    </div>
+    """
   end
 
-  defp get_effective_config_field(nil, _field), do: nil
+  defp legend(assigns) do
+    assigns = assign(assigns, kinds: Map.values(@kind_style), signals: @signal_style)
 
-  defp get_effective_config_field(config_map, field) do
-    Map.get(config_map, field, "")
+    ~H"""
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-base-content/60">
+      <span :for={{label, _border, dot} <- Enum.sort(@kinds)} class="flex items-center gap-1.5">
+        <span class={["size-2.5 rounded-sm", dot]} />{label}
+      </span>
+      <span class="mx-1 h-3 border-l border-base-300" />
+      <span :for={{signal, dot} <- Enum.sort(@signals)} class="flex items-center gap-1.5">
+        <span class={["size-1.5 rounded-full", dot]} />{signal}
+      </span>
+    </div>
+    """
   end
 
-  def find_description_field(nil, _field), do: ""
+  attr :objects, :list, required: true
+  attr :selected, :string, default: nil
+  attr :agent, :map, required: true
+  attr :action, :atom, required: true
 
-  def find_description_field(description, field) do
-    identifying = description.identifying_attributes || []
-    non_identifying = description.non_identifying_attributes || []
-
-    Enum.concat(identifying, non_identifying)
-    |> Enum.find(fn kv -> kv.key == field end)
-    |> get_value
+  defp object_menu(assigns) do
+    ~H"""
+    <nav aria-label="Config objects">
+      <ul class="menu w-full rounded-box border border-base-300 bg-base-100">
+        <li class="menu-title">Config objects</li>
+        <li :for={object <- @objects}>
+          <.link
+            patch={tab_path(@agent, @action, object.key)}
+            class={[object.key == @selected && "menu-active"]}
+            aria-current={if object.key == @selected, do: "true", else: "false"}
+          >
+            <.icon
+              name={if object.resource?, do: "hero-cube", else: "hero-document-text"}
+              class="size-4"
+            />
+            <span class="truncate">{config_key_label(object.key)}</span>
+            <span :if={not object.managed?} class="badge badge-xs badge-ghost ml-auto">read-only</span>
+          </.link>
+        </li>
+      </ul>
+    </nav>
+    """
   end
 
-  defp get_value(nil), do: ""
+  @connection_capabilities ~w(AcceptsOpAMPConnectionSettings AcceptsOtherConnectionSettings
+    ReportsOwnMetrics ReportsOwnTraces ReportsOwnLogs ReportsConnectionSettingsStatus)
 
-  defp get_value(kv) do
-    case kv.value.value do
-      {:string_value, v} ->
-        v
-
-      {other, _v} ->
-        IO.puts("unable to retrieve value for type #{other}")
-        ""
-    end
+  defp connection_capabilities(agent) do
+    reported = AgentView.capabilities(agent)
+    for name <- @connection_capabilities, do: {name, name in reported}
   end
 end

@@ -162,7 +162,9 @@ defmodule OpAMPServerWeb.AgentsChannel do
       effective_config: payload.effective_config,
       remote_config_status: payload.remote_config_status,
       component_health: payload.health,
-      description: payload.agent_description
+      description: payload.agent_description,
+      # 0 is the protobuf default, so the message did not set capabilities.
+      capabilities: if(payload.capabilities == 0, do: nil, else: payload.capabilities)
     }
 
     case OpAMPServer.Agents.get_agent(agent_id) do

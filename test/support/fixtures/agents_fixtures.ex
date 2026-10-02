@@ -106,4 +106,33 @@ defmodule OpAMPServer.AgentsFixtures do
       end)
     )
   end
+
+  @doc """
+  The body of a managed OpenTelemetryCollector resource with one traces pipeline:
+  otlp -> memory_limiter -> batch -> debug.
+  """
+  def pipeline_collector_body(name) do
+    """
+    apiVersion: opentelemetry.io/v1beta1
+    kind: OpenTelemetryCollector
+    metadata:
+      name: #{name}
+      labels: {"opentelemetry.io/opamp-managed": "true"}
+    spec:
+      config:
+        receivers:
+          otlp: {protocols: {grpc: {endpoint: "0.0.0.0:4317"}}}
+        processors:
+          memory_limiter: {check_interval: 1s}
+          batch: {}
+        exporters:
+          debug: {}
+        service:
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [memory_limiter, batch]
+              exporters: [debug]
+    """
+  end
 end

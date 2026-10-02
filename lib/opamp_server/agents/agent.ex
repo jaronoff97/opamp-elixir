@@ -11,6 +11,8 @@ defmodule OpAMPServer.Agents.Agent do
     field :remote_config_status, EctoTypes.RemoteConfigStatus
     field :component_health, EctoTypes.ComponentHealth
     field :description, EctoTypes.AgentDescription
+    # The AgentCapabilities bitmask from the agent's last message.
+    field :capabilities, :integer
 
     timestamps(type: :utc_datetime)
   end
@@ -24,14 +26,16 @@ defmodule OpAMPServer.Agents.Agent do
       :remote_config_status,
       :component_health,
       :desired_remote_config,
-      :description
+      :description,
+      :capabilities
     ])
     |> remove_nil([
       :effective_config,
       :remote_config_status,
       :component_health,
       :desired_remote_config,
-      :description
+      :description,
+      :capabilities
     ])
     |> unique_constraint(:id)
     |> validate_required([:id])

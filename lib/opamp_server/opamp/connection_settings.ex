@@ -60,6 +60,17 @@ defmodule OpAMPServer.OpAMP.ConnectionSettings do
   @doc "True if the server has a CA to sign agent CSRs."
   def signs_csrs?, do: loaded().ca != nil
 
+  @doc "The configured offers, before the server filters them for each agent, or nil."
+  def configured_offers, do: loaded().offers
+
+  @doc "The CA certificate (an X509 OTP certificate), or nil."
+  def ca_certificate do
+    case loaded().ca do
+      {certificate, _key} -> certificate
+      nil -> nil
+    end
+  end
+
   @doc """
   Returns the offer for an agent with these capabilities, or nil if there is nothing to offer.
 

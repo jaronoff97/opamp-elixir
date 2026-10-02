@@ -38,12 +38,9 @@ defmodule OpAMPServerWeb do
 
   def controller do
     quote do
-      use Phoenix.Controller,
-        formats: [:html, :json],
-        layouts: [html: OpAMPServerWeb.Layouts]
+      use Phoenix.Controller, formats: [:html, :json]
 
       import Plug.Conn
-      import OpAMPServerWeb.Gettext
 
       unquote(verified_routes())
     end
@@ -51,8 +48,7 @@ defmodule OpAMPServerWeb do
 
   def live_view do
     quote do
-      use Phoenix.LiveView,
-        layout: {OpAMPServerWeb.Layouts, :app}
+      use Phoenix.LiveView
 
       unquote(html_helpers())
     end
@@ -83,12 +79,14 @@ defmodule OpAMPServerWeb do
     quote do
       # HTML escaping functionality
       import Phoenix.HTML
-      # Core UI components and translation
+      # Core UI components
       import OpAMPServerWeb.CoreComponents
-      import OpAMPServerWeb.Gettext
+      import OpAMPServerWeb.GraphComponents
+      import OpAMPServerWeb.UIComponents
 
-      # Shortcut for generating JS commands
+      # Common modules used in templates
       alias Phoenix.LiveView.JS
+      alias OpAMPServerWeb.Layouts
 
       # Routes generation with the ~p sigil
       unquote(verified_routes())
@@ -105,7 +103,7 @@ defmodule OpAMPServerWeb do
   end
 
   @doc """
-  When used, dispatch to the appropriate controller/view/etc.
+  When used, dispatch to the appropriate controller/live_view/etc.
   """
   defmacro __using__(which) when is_atom(which) do
     apply(__MODULE__, which, [])

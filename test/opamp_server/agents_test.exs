@@ -24,7 +24,7 @@ defmodule OpAMPServer.AgentsTest do
       valid_attrs = %{id: Ecto.UUID.generate()}
 
       assert {:ok, %Agent{} = agent} = Agents.create_agent(valid_attrs)
-      assert agent.id != nil
+      assert agent.id == valid_attrs.id
     end
 
     test "create_agent/1 with invalid data returns error changeset" do

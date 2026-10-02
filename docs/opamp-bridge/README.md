@@ -9,8 +9,9 @@ the two work together in both directions:
 
 The files in this folder are the exact manifests and script that the runbook uses.
 
-Versions on the last run (2026-10-01): OrbStack Kubernetes v1.35.6, opentelemetry-operator Helm
-chart 0.124.1 (operator 0.160.0), and bridge image `operator-opamp-bridge:latest` (version 0.160.0).
+Versions on the last run (2026-10-02): OrbStack Kubernetes v1.35.6, opentelemetry-operator Helm
+chart 0.124.1 (operator 0.160.0), bridge image `operator-opamp-bridge:latest` (version 0.160.0), and
+the server on Elixir 1.20.4, Erlang/OTP 29.1.1, Phoenix 1.8.15 and LiveView 1.2.12.
 
 ## Prerequisites
 
@@ -73,7 +74,8 @@ The operator pod must show `Running`.
 2. Make the database. Run these commands from the repository root.
 
    ```sh
-   mix setup        # first time only
+   npm install --prefix assets   # first time only
+   mix setup                     # first time only
    mix ecto.create
    mix ecto.migrate
    ```
@@ -139,7 +141,8 @@ agent <instance uid>
   healthy=true
 ```
 
-Open <http://localhost:4320> to see the same agent in the UI.
+Open <http://localhost:4320> to see the bridge and `default/simplest` in the Fleet graph. The agent
+page is at `http://localhost:4320/agents/<instance uid>`.
 
 ## 7. Confirm that the server manages collectors through the bridge
 

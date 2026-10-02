@@ -175,19 +175,11 @@ defmodule OpAMPServer.Agents do
   end
 
   # The OpAMP Bridge also reports collectors that it must not change, and it rejects a remote
-  # config for them. It manages a collector only with the opamp-managed label and without
-  # `opamp-reporting: "true"`. Bodies of other agents are not collector resources, so they stay.
+  # config for them. Bodies of other agents are not collector resources, so they stay.
   defp unmanaged_collector?(body) do
-    case YamlElixir.read_from_string(body) do
-      {:ok, %{"kind" => "OpenTelemetryCollector"} = collector} ->
-        labels = get_in(collector, ["metadata", "labels"]) || %{}
-        label = &String.downcase(to_string(labels[&1]))
-
-        label.("opentelemetry.io/opamp-managed") in ["", "false"] or
-          label.("opentelemetry.io/opamp-reporting") == "true"
-
-      _ ->
-        false
+    case OpAMPServer.CollectorConfig.parse(body) do
+      {:ok, config} -> not OpAMPServer.CollectorConfig.managed?(config)
+      :error -> false
     end
   end
 

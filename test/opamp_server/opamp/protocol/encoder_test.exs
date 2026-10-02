@@ -75,8 +75,9 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
     test "builds error response for :unmatched_topic" do
       result = Encoder.build_error_response(:unmatched_topic)
 
-      assert %Opamp.Proto.ServerToAgent{} = result
-      assert result.error_response != nil
+      assert %Opamp.Proto.ServerToAgent{error_response: %Opamp.Proto.ServerErrorResponse{}} =
+               result
+
       assert result.error_response.type == :ServerErrorResponseType_Unavailable
       assert result.error_response.error_message == "Connection idled, reconnect requested"
     end
@@ -106,7 +107,7 @@ defmodule OpAMPServer.OpAMP.Protocol.EncoderTest do
       result = Encoder.build_error_response(:unmatched_topic)
 
       # Protobuf defaults: empty binary for bytes, 0 for integers
-      assert result.instance_uid == "" || result.instance_uid == nil
+      assert result.instance_uid == ""
       assert result.remote_config == nil
       assert result.capabilities == 0
     end

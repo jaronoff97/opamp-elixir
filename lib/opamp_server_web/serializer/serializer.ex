@@ -122,13 +122,17 @@ defmodule OpAMPServerWeb.Serializer do
     end
   end
 
+  # Phoenix 1.8 drops a message to a joined topic if its join_ref is not the join_ref of the
+  # join ("a stale message to a previous join_ref"). So every message uses the same one.
+  @join_ref "join"
+
   defp handle_join(proto, instance_uuid) do
     %Message{
       topic: "agents:" <> instance_uuid,
       event: "phx_join",
       payload: proto,
       ref: proto.sequence_num,
-      join_ref: "join"
+      join_ref: @join_ref
     }
   end
 
@@ -138,7 +142,7 @@ defmodule OpAMPServerWeb.Serializer do
       event: "heartbeat",
       payload: proto,
       ref: proto.sequence_num,
-      join_ref: "beat"
+      join_ref: @join_ref
     }
   end
 end

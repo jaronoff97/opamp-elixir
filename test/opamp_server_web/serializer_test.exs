@@ -279,7 +279,8 @@ defmodule OpAMPServerWeb.SerializerTest do
       assert result.topic == "agents:" <> agent_id
       assert result.event == "heartbeat"
       assert result.ref == 5
-      assert result.join_ref == "beat"
+      # Phoenix 1.8 drops a message whose join_ref is not the join_ref of the join.
+      assert result.join_ref == join!(generate_instance_uid()).join_ref
     end
 
     test "preserves sequence number as ref" do
